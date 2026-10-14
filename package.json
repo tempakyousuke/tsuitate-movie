@@ -1,0 +1,29 @@
+{
+  "name": "tsuitate-movie",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ついたて将棋の実況動画を棋譜と台本から生成するツール",
+  "type": "module",
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts KifuReplay out/replay.mp4",
+    "still": "remotion still src/index.ts KifuReplay",
+    "sounds:placeholder": "sh scripts/make-placeholder-sounds.sh",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.535",
+    "@remotion/google-fonts": "^4.0.535",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.535"
+  }
+}

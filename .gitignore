@@ -1,0 +1,11 @@
+node_modules/
+out/
+.DS_Store
+
+# 再配布禁止の素材・生成音声はリポジトリに入れない
+assets/
+*.wav
+
+# 実戦の棋譜（対戦相手のユーザー名を含む）
+sample.txt
+kifu/
