@@ -22,8 +22,11 @@ export type KifuReplayProps = {
   player: Color;
   /** false なら対局者名の代わりに「先手」「後手」と表示する */
   showNames: boolean;
-  /** 駒が着いたときに鳴らす public/ 以下の効果音。null なら鳴らさない */
-  moveSound: string | null;
+  /**
+   * 駒が着いたときに鳴らす効果音。null なら鳴らさない。
+   * src は public/ 以下のパス。leadSilenceSec は音の頭の無音（この分を飛ばして着手と音を合わせる）
+   */
+  moveSound: { src: string; leadSilenceSec: number } | null;
   /** calculateMetadata で読み込んだ棋譜本文 */
   kifuText?: string;
 };
@@ -33,8 +36,8 @@ export const calculateKifuReplayMetadata: CalculateMetadataFunction<KifuReplayPr
   const timeline = autoTimeline(parseKif(kifuText), { fps: FPS });
   let { moveSound } = props;
   // 効果音は再配布できない素材なので、ない環境でも無音で書き出せるようにする
-  if (moveSound && !(await fetch(staticFile(moveSound), { method: "HEAD" })).ok) {
-    console.warn(`効果音 public/${moveSound} がないので無音にします（scripts/make-placeholder-sounds.sh で仮の音を作れます）`);
+  if (moveSound && !(await fetch(staticFile(moveSound.src), { method: "HEAD" })).ok) {
+    console.warn(`効果音 public/${moveSound.src} がないので無音にします（入手元は src/Root.tsx のコメント参照）`);
     moveSound = null;
   }
   return { durationInFrames: timeline.durationInFrames, props: { ...props, moveSound, kifuText } };
@@ -61,7 +64,7 @@ export function KifuReplay({ kifuText, view, player, showNames, moveSound }: Kif
       {moveSound && timeline.entries.map((entry) => entry.step.type === "move" && (
         // 駒が滑り終わって盤に着いた瞬間に鳴らす
         <Sequence key={entry.startFrame} from={entry.startFrame + SLIDE_FRAMES} durationInFrames={fps} layout="none">
-          <Html5Audio src={staticFile(moveSound)} />
+          <Html5Audio src={staticFile(moveSound.src)} trimBefore={Math.round(moveSound.leadSilenceSec * fps)} />
         </Sequence>
       ))}
     </AbsoluteFill>

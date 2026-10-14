@@ -4,7 +4,9 @@ out/
 
 # 再配布禁止の素材・生成音声はリポジトリに入れない
 assets/
+public/sounds/
 *.wav
+*.mp3
 
 # 実戦の棋譜（対戦相手のユーザー名を含む）
 sample.txt
