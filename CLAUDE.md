@@ -41,7 +41,7 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
 
 ### 台本の保存場所
 
-`public/episodes/<名前>/` に `script.json`（台本、コミットする）、`kifu.kif`（棋譜、対戦相手名を含むのでコミットしない）、`voices/`（音声、コミットしない）を置く。
+`public/episodes/<名前>/` に `script.json`（台本）、`kifu.kif`（棋譜）、`voices/`（音声）を置く。**`public/episodes/` はまるごとコミットしない**（台本はシステムと関係ない、とユーザー判断。棋譜は対戦相手名を含み、A.I.VOICE2 の音声は配布禁止）。
 エディタの開発サーバーは `public/` をルートで配信するので、Remotion の `staticFile("x")`（バンドル外では `/x` になる）がエディタでもそのまま使える。
 
 ### 台本からタイムラインへの規則
