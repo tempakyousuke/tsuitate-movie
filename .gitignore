@@ -4,6 +4,8 @@ out/
 
 # 再配布禁止の素材・生成音声はリポジトリに入れない
 assets/
+# assets/ へのシンボリックリンク（立ち絵を staticFile で読むため）
+public/characters
 public/sounds/
 *.wav
 *.mp3

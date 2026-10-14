@@ -15,6 +15,7 @@ pnpm exec remotion still src/index.ts Episode out/x.png --frame=1080 --props='{"
 pnpm render        # 台本なしで棋譜を自動再生（KifuReplay、out/replay.mp4）
 pnpm exec remotion render src/index.ts KifuReplay out/replay-sente.mp4 --props='{"view":"sente"}'
 pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合成
+pnpm characters:link      # assets/ の立ち絵素材を public/characters/<話者id> にリンクする（素材を展開した後に1回）
 ```
 
 `remotion still` で `--` を挟むと `--frame` が無視される。
@@ -35,7 +36,8 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
 | `src/timeline/timeline.ts` | `buildTimeline()`: 台本から、盤面の場面・セリフ・視点切替の絶対フレームを計算する |
 | `src/render/scene.ts` | `sceneAt()`: フレーム番号 → その時点の画面内容（局面、移動中の駒、反則、王手など） |
 | `src/render/BoardView.tsx` | 盤・駒・持ち駒・情報欄の SVG 描画 |
-| `src/render/EpisodeVideo.tsx` | 動画本体（盤面・字幕・駒音・セリフ音声）。Remotion のコンポジションとエディタのプレビューの両方で使う |
+| `src/render/EpisodeVideo.tsx` | 動画本体（盤面・立ち絵・字幕・駒音・セリフ音声）。Remotion のコンポジションとエディタのプレビューの両方で使う |
+| `src/render/characters.ts` | 立ち絵のパーツの重ね方、まばたき・口パクの段階、登場する話者と左右の配置 |
 | `src/Root.tsx` | コンポジション登録（`Episode`: 台本から、`KifuReplay`: 台本なしの自動再生） |
 | `editor/` | 台本エディタ（Vite + React + Remotion Player）。`api.ts` が開発サーバー上で台本を読み書きする |
 
@@ -76,6 +78,13 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
   - A.I.VOICE2 結月ゆかりは個人の収益化に追加ライセンス不要。生成した音声ファイルの配布は禁止。
   - 立ち絵はきつね式ゆっくり（霊夢・魔理沙・ゆづきゆかり）が候補。AI でのアップスケールや AI 学習への利用は禁止。生成 AI で作ったゆかり画像をそのまま使うと VOCALOMAKETS のガイドライン上収益化できない。
 
+## 立ち絵
+
+- きつね式ゆっくりの素材を `assets/れいむ` `assets/まりさ` `assets/ゆづきゆかり` に展開し、`pnpm characters:link` で `public/characters/<話者id>` にリンクする。**素材のフォルダ名は macOS では濁点が分解された NFD で保存されていて、Vite の開発サーバーが URL と照合できない**ので、英字のリンク名を通して読む。
+- パーツはすべて 400x320 で、体 → 顔 → 口 → 目 → 髪（前髪）→ 眉 の順に重ねる。`後/` は尻尾などの飾りで使っていない。目・口は `00` が基本形、`00a`〜`00e` が段階（目は閉じていく、口は開いていく）。`全/セット.txt`（Shift_JIS）に表情の組み合わせがある。今は全員セット01の表情。
+- **配置（ユーザー指定）**: ゆっくり（AquesTalk）は左、ゆかりは右で向き合わせる。素材は画面の左を向いているので、左側の人は左右反転する。台本でセリフがない話者は出さない（1本目は魔理沙なし）。全員を同時に表示し、話していない人は少し暗くする。
+- 口パクは今は音声によらず一定のリズムで開け閉めする。まばたきは人ごとにずれた3〜6秒間隔。
+
 ## 音声合成（調査・検証済み）
 
 - **AquesTalk（霊夢・魔理沙）は CLI で完全自動化できる**。Mac 版 AquesTalkPlayer（2025年8月〜）を実機で検証済み:
@@ -95,7 +104,7 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
 台本は YAML を手で書くのではなく、**専用の GUI エディタで編集する**（ユーザーの希望）。エディタの初版（区間の作成、セリフの編集、手を進めるタイミングの指定、視点、プレビュー、自動保存）はできている。
 
 1. エディタでのセリフ音声の生成・取り込み（上の「音声合成」の方式）。`Line.voice` に入れれば、タイムラインと動画は対応済み。
-2. 立ち絵（きつね式ゆっくりのパーツで口パク・まばたき）。素材はユーザーがダウンロード済みで、`assets/` に置く（再配布不可のためコミットしない）。今の字幕帯と盤面の縮小（`BOARD_SCALE`）は仮のレイアウト。
+2. 立ち絵の続き（表情の指定など）。基本の表示（下記）はできている。
 3. エディタからの書き出し、元に戻す（undo）など。
 
 ## 作業上の注意

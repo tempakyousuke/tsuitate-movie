@@ -11,6 +11,7 @@
     "render": "remotion render src/index.ts KifuReplay out/replay.mp4",
     "still": "remotion still src/index.ts KifuReplay",
     "sounds:placeholder": "sh scripts/make-placeholder-sounds.sh",
+    "characters:link": "sh scripts/link-characters.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

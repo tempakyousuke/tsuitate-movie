@@ -1,13 +1,16 @@
 import { loadFont } from "@remotion/google-fonts/NotoSerifJP";
 import { useMemo } from "react";
 import {
-  AbsoluteFill, Html5Audio, Sequence, staticFile, useCurrentFrame, useVideoConfig, type CalculateMetadataFunction,
+  AbsoluteFill, Html5Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig, type CalculateMetadataFunction,
 } from "remotion";
-import { defaultEpisode, type Episode } from "../episode/episode.ts";
+import { defaultEpisode, type Episode, type Speaker } from "../episode/episode.ts";
 import { parseKif, replay, type Kifu } from "../kifu/parseKif.ts";
 import { opposite, type Color } from "../shogi/position.ts";
 import { SLIDE_FRAMES, buildTimeline, lineAt, viewAt } from "../timeline/timeline.ts";
 import { BoardView, HEIGHT, WIDTH, type PlayerLabel, type View } from "./BoardView.tsx";
+import {
+  DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, eyeStage, mouthStage, spriteLayers, type Side,
+} from "./characters.ts";
 import { sceneAt } from "./scene.ts";
 
 // 日本語フォントは unicode-range ごとに分割配信されるのでリクエスト数が多くなるが、問題はない
@@ -78,6 +81,56 @@ export const calculateKifuReplayMetadata: CalculateMetadataFunction<KifuReplayCo
 export const EpisodeComposition: React.FC<EpisodeCompositionProps> = (props) => <EpisodeVideo {...props} />;
 export const KifuReplayComposition: React.FC<KifuReplayCompositionProps> = (props) => <EpisodeVideo {...props} />;
 
+/** 片側に count 人並べるときの立ち絵の倍率と、隣の人との間隔 */
+const spriteScale = (count: number) => (count > 1 ? 0.8 : 1);
+const SPRITE_STEP = 230;
+/** 立ち絵の外側の端からの位置（素材の左右には余白があるので少しはみ出させる） */
+const SPRITE_INSET = -40;
+
+/** 片側の立ち絵が画面の端から占める幅（字幕の帯をその内側に置く）。いなければ 0 */
+function groupWidth(count: number): number {
+  if (count === 0) return 0;
+  const scale = spriteScale(count);
+  return SPRITE_INSET + (count - 1) * SPRITE_STEP + SPRITE_W * scale * 0.85;
+}
+
+/** 字幕が帯の高さ（3行まで）に収まる一番大きい文字サイズ */
+function subtitleFontSize(text: string, width: number): number {
+  const height = HEIGHT - SUBTITLE_TOP - 40;
+  const chars = [...text].length;
+  for (const size of [46, 42, 38, 34, 30]) {
+    const lines = Math.ceil(chars / Math.floor(width / size));
+    if (lines * size * 1.3 <= height) return size;
+  }
+  return 28;
+}
+
+/**
+ * 1人分の立ち絵。素材は画面の左を向いているので、左側の人は左右反転して右（相手）を向かせる。
+ * 話していない人は、誰かが話している間は少し暗くする
+ */
+function CharacterSprite({ speaker, side, index, count, eye, mouth, dimmed }: {
+  speaker: Speaker; side: Side; index: number; count: number; eye: number; mouth: number; dimmed: boolean;
+}) {
+  const scale = spriteScale(count);
+  const w = SPRITE_W * scale;
+  const h = SPRITE_H * scale;
+  const offset = SPRITE_INSET + index * SPRITE_STEP;
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, width: w, height: h,
+      ...(side === "left" ? { left: offset } : { right: offset }),
+      transform: side === "left" ? "scaleX(-1)" : undefined,
+      filter: dimmed ? "brightness(0.7)" : undefined,
+    }}>
+      {spriteLayers(speaker.id, DEFAULT_EXPRESSION, eye, mouth).map((src) => (
+        <Img key={src.replace(/[a-e]?\.png$/, "")} src={staticFile(src)}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      ))}
+    </div>
+  );
+}
+
 /** 対局者欄の表示。相手のユーザー名は動画に出さず、レートだけ出す */
 function playerLabels(kifu: Kifu, player: Color): Record<Color, PlayerLabel> {
   const opponent = opposite(player);
@@ -100,6 +153,10 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
   const { kifu, positions, timeline } = data;
   const line = lineAt(timeline, frame);
   const speaker = line && episode.speakers.find((s) => s.id === line.speaker);
+  const cast = castOf(episode);
+  // 字幕の帯は左右の立ち絵の間に置く
+  const subtitleLeft = groupWidth(cast.left.length) || 160;
+  const subtitleRight = groupWidth(cast.right.length) || 160;
 
   return (
     <AbsoluteFill style={{ background: "#1d2433" }}>
@@ -114,7 +171,7 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
       </div>
       {!line && timeline.replayStart !== null && frame >= timeline.replayStart && (
         <div style={{
-          position: "absolute", left: 160, right: 160, top: SUBTITLE_TOP + 12, height: HEIGHT - SUBTITLE_TOP - 30,
+          position: "absolute", left: subtitleLeft, right: subtitleRight, top: SUBTITLE_TOP + 12, height: HEIGHT - SUBTITLE_TOP - 30,
           display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 16,
           background: "rgba(0, 0, 0, 0.55)", fontFamily: FONT, color: "#f6f2ea", fontSize: 46, fontWeight: 700,
         }}>
@@ -123,16 +180,33 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
       )}
       {line && (
         <div style={{
-          position: "absolute", left: 160, right: 160, top: SUBTITLE_TOP + 12, height: HEIGHT - SUBTITLE_TOP - 30,
+          position: "absolute", left: subtitleLeft, right: subtitleRight, top: SUBTITLE_TOP + 12, height: HEIGHT - SUBTITLE_TOP - 30,
           display: "flex", alignItems: "center", gap: 28, padding: "0 36px", borderRadius: 16,
           background: "rgba(0, 0, 0, 0.55)", fontFamily: FONT, color: "#f6f2ea",
         }}>
           <span style={{ fontSize: 40, fontWeight: 700, color: speaker?.color ?? "#fff", whiteSpace: "nowrap" }}>
             {speaker?.name ?? line.speaker}
           </span>
-          <span style={{ fontSize: 46, fontWeight: 700, lineHeight: 1.3 }}>{line.text}</span>
+          <span style={{ fontSize: subtitleFontSize(line.text, WIDTH - subtitleLeft - subtitleRight - 220), fontWeight: 700, lineHeight: 1.3 }}>
+            {line.text}
+          </span>
         </div>
       )}
+      {(["left", "right"] as const).flatMap((side) => cast[side].map((s, i) => {
+        const talking = line?.speaker === s.id;
+        return (
+          <CharacterSprite
+            key={s.id}
+            speaker={s}
+            side={side}
+            index={i}
+            count={cast[side].length}
+            eye={eyeStage(frame, fps, s.id)}
+            mouth={talking ? mouthStage(frame - line!.startFrame) : 0}
+            dimmed={!!line && !talking}
+          />
+        );
+      }))}
       {moveSound && timeline.entries.map((entry) => entry.step.type === "move" && (
         // 駒が滑り終わって盤に着いた瞬間に鳴らす
         <Sequence key={`m${entry.startFrame}`} from={entry.startFrame + SLIDE_FRAMES} durationInFrames={fps} layout="none">
