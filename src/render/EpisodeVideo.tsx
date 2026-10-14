@@ -26,13 +26,14 @@ const SUBTITLE_TOP = HEIGHT * BOARD_SCALE;
 
 /**
  * 駒が着いたときに鳴らす効果音。null なら鳴らさない。
- * src は public/ 以下のパス。leadSilenceSec は音の頭の無音（この分を飛ばして着手と音を合わせる）
+ * src は public/ 以下のパス。leadSilenceSec は音の頭の無音（この分を飛ばして着手と音を合わせる）、volume は音量（0〜1）
  */
-export type MoveSound = { src: string; leadSilenceSec: number } | null;
+export type MoveSound = { src: string; leadSilenceSec: number; volume: number } | null;
 
 // On-Jin ～音人～「将棋・駒を強めに指す03」。再配布不可のためリポジトリには含めない
 // （https://on-jin.com/sound/index.php?kensaku=将棋の駒 から取得して public/sounds/ に置く）
-export const DEFAULT_MOVE_SOUND: MoveSound = { src: "sounds/spo_ge_syogi_s03.mp3", leadSilenceSec: 0.107 };
+// 素材そのままだとピークが +0.4dBFS あり、セリフや BGM と重なると音が割れるので、少し（約 -3dB）下げる
+export const DEFAULT_MOVE_SOUND: MoveSound = { src: "sounds/spo_ge_syogi_s03.mp3", leadSilenceSec: 0.107, volume: 0.7 };
 
 export type EpisodeVideoProps = {
   episode?: Episode;
@@ -228,7 +229,7 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
       {moveSound && timeline.entries.map((entry) => entry.step.type === "move" && (
         // 駒が滑り終わって盤に着いた瞬間に鳴らす
         <Sequence key={`m${entry.startFrame}`} from={entry.startFrame + SLIDE_FRAMES} durationInFrames={fps} layout="none">
-          <Html5Audio src={staticFile(moveSound.src)} trimBefore={Math.round(moveSound.leadSilenceSec * fps)} />
+          <Html5Audio src={staticFile(moveSound.src)} trimBefore={Math.round(moveSound.leadSilenceSec * fps)} volume={moveSound.volume} />
         </Sequence>
       ))}
       {episode.bgm && <BgmTrack bgm={episode.bgm} totalFrames={timeline.durationInFrames} fps={fps} />}
