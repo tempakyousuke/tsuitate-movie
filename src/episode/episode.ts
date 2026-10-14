@@ -54,9 +54,27 @@ export interface Line {
   yomi?: string;
   /** このセリフの間に盤面をどこまで進めるか */
   advance?: { to: StepRef; at: LineTiming };
-  /** 取り込んだ音声（public/ 以下のパスと、末尾の無音を除いた長さ） */
-  voice?: { src: string; durationSec: number };
+  /** 作成・取り込みした音声 */
+  voice?: Voice;
 }
+
+export interface Voice {
+  /** public/ 以下のパス */
+  src: string;
+  /** 末尾の無音を除いた長さ */
+  durationSec: number;
+  /** 音声にした文（読み）。今の読みと違えば、セリフを書き換えた後の古い音声として使わない */
+  text: string;
+  /** 1フレーム（30fps）ごとの口の開き（0〜5 の数字の列）。音量から求める */
+  mouth: string;
+}
+
+/** 読み上げる文（読みの指定があればそれ）。改行は音声合成に渡せないので空白にする */
+export const speechText = (line: Line): string => (line.yomi || line.text).replace(/\s*\n\s*/g, " ").trim();
+
+/** 今のセリフに合った音声があればそれ（書き換えた後の古い音声は使わない） */
+export const freshVoice = (line: Line): Voice | undefined =>
+  line.voice && line.voice.text === speechText(line) ? line.voice : undefined;
 
 /** セリフのどの時点で操作するか。ratio は 0〜1 */
 export type LineTiming = { kind: "start" } | { kind: "end" } | { kind: "ratio"; value: number };
@@ -140,6 +158,17 @@ export function mergeWithNext(episode: Episode, i: number): Episode {
   const segments = episode.segments.slice();
   segments.splice(i, 2, { ...a, endPly: b.endPly, lines: [...a.lines, ...b.lines] });
   return { ...episode, segments };
+}
+
+/** セリフ id → 音声 を台本に入れる */
+export function setVoices(episode: Episode, voices: Record<string, Voice>): Episode {
+  return {
+    ...episode,
+    segments: episode.segments.map((seg) => ({
+      ...seg,
+      lines: seg.lines.map((l) => (voices[l.id] ? { ...l, voice: voices[l.id] } : l)),
+    })),
+  };
 }
 
 export function updateSegment(episode: Episode, i: number, patch: Partial<Segment>): Episode {

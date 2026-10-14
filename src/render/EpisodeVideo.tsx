@@ -9,7 +9,7 @@ import { opposite, type Color } from "../shogi/position.ts";
 import { SLIDE_FRAMES, buildTimeline, lineAt, viewAt } from "../timeline/timeline.ts";
 import { BoardView, HEIGHT, WIDTH, type PlayerLabel, type View } from "./BoardView.tsx";
 import {
-  DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, eyeStage, mouthStage, spriteLayers, type Side,
+  DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, eyeStage, mouthStage, spriteParts, type Side,
 } from "./characters.ts";
 import { sceneAt } from "./scene.ts";
 
@@ -123,10 +123,13 @@ function CharacterSprite({ speaker, side, index, count, eye, mouth, dimmed }: {
       transform: side === "left" ? "scaleX(-1)" : undefined,
       filter: dimmed ? "brightness(0.7)" : undefined,
     }}>
-      {spriteLayers(speaker.id, DEFAULT_EXPRESSION, eye, mouth).map((src) => (
-        <Img key={src.replace(/[a-e]?\.png$/, "")} src={staticFile(src)}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-      ))}
+      {spriteParts(speaker.id, DEFAULT_EXPRESSION).flatMap(({ layer, srcs }) => {
+        const shown = layer === "目" ? eye : layer === "口" ? mouth : 0;
+        return srcs.map((src, i) => (
+          <Img key={src} src={staticFile(src)}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: i === shown ? 1 : 0 }} />
+        ));
+      })}
     </div>
   );
 }
@@ -202,7 +205,7 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
             index={i}
             count={cast[side].length}
             eye={eyeStage(frame, fps, s.id)}
-            mouth={talking ? mouthStage(frame - line!.startFrame) : 0}
+            mouth={talking ? mouthStage(frame - line!.startFrame, line!.voice) : 0}
             dimmed={!!line && !talking}
           />
         );

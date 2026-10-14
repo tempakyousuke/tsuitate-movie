@@ -6,6 +6,7 @@ import type { Plugin } from "vite";
 import { defaultEpisode, type Episode } from "../src/episode/episode.ts";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
 import type { Color } from "../src/shogi/position.ts";
+import { generateAquesTalk, importAivoice } from "./voices.ts";
 
 /**
  * エディタ用の API（開発サーバーのミドルウェア）。台本と棋譜を public/episodes/<名前>/ に読み書きする。
@@ -13,6 +14,8 @@ import type { Color } from "../src/shogi/position.ts";
  *   POST /api/episodes          → 棋譜を貼り付けて新しい台本を作る { name, kifuText, player }
  *   GET  /api/episodes/:name    → { episode, kifuText }
  *   PUT  /api/episodes/:name    → script.json を上書き保存
+ *   POST /api/episodes/:name/voices/aquestalk → ゆっくりのセリフを1つ音声にする { lineId, preset, text } → Voice
+ *   POST /api/episodes/:name/voices/import    → A.I.VOICE2 の書き出しフォルダを取り込む { folder, lines } → ImportResult
  */
 export function episodeApi(publicDir: string): Plugin {
   const episodesDir = join(publicDir, "episodes");
@@ -23,6 +26,22 @@ export function episodeApi(publicDir: string): Plugin {
 
   const routes = async (req: IncomingMessage, url: URL): Promise<unknown> => {
     const name = url.pathname.match(/^\/episodes\/([^/]+)$/)?.[1];
+    const [, voiceName, voiceAction] = url.pathname.match(/^\/episodes\/([^/]+)\/voices\/(aquestalk|import)$/) ?? [];
+
+    if (voiceName && req.method === "POST") {
+      const dir = dirOf(voiceName);
+      if (!existsSync(dir)) throw new HttpError(404, `${voiceName} がありません`);
+      try {
+        if (voiceAction === "aquestalk") {
+          const body = (await readJson(req)) as { lineId: string; preset: string; text: string };
+          return await generateAquesTalk(dir, voiceName, safeId(body.lineId), body.preset, body.text);
+        }
+        const body = (await readJson(req)) as { folder: string; lines: { id: string; text: string }[] };
+        return await importAivoice(dir, voiceName, body.folder, body.lines.map((l) => ({ ...l, id: safeId(l.id) })));
+      } catch (e) {
+        throw e instanceof HttpError ? e : new HttpError(400, (e as Error).message);
+      }
+    }
 
     if (url.pathname === "/episodes" && req.method === "GET") {
       if (!existsSync(episodesDir)) return [];
@@ -83,6 +102,12 @@ export function episodeApi(publicDir: string): Plugin {
       });
     },
   };
+}
+
+/** セリフ id はファイル名に使うので、英数字だけに限る */
+function safeId(id: string): string {
+  if (!/^[\w-]+$/.test(id)) throw new HttpError(400, `セリフの id が不正です: ${id}`);
+  return id;
 }
 
 class HttpError extends Error {

@@ -1,4 +1,4 @@
-import type { Episode, Line, LineTiming } from "../episode/episode.ts";
+import { freshVoice, type Episode, type Line, type LineTiming } from "../episode/episode.ts";
 import type { Kifu } from "../kifu/parseKif.ts";
 import { kifuSteps, moveStepIndex, stepIndexOf, type KifuStep } from "../kifu/steps.ts";
 import type { View } from "../render/BoardView.tsx";
@@ -49,7 +49,8 @@ const toStep = (s: KifuStep): Step =>
 
 /** 音声があればその長さ、なければ文字数から見積もった長さ（秒） */
 export function lineDurationSec(line: Line, episode: Episode): number {
-  if (line.voice) return line.voice.durationSec;
+  const voice = freshVoice(line);
+  if (voice) return voice.durationSec;
   const chars = [...(line.yomi || line.text)].length;
   return Math.max(episode.settings.minLineSec, chars * episode.settings.charSec);
 }
@@ -96,7 +97,7 @@ export function buildTimeline(kifu: Kifu, episode: Episode, fps: number): Timeli
     for (const line of seg.lines) {
       const dur = lineDurationSec(line, episode);
       lines.push({
-        lineId: line.id, segmentIndex, speaker: line.speaker, text: line.text, voice: line.voice,
+        lineId: line.id, segmentIndex, speaker: line.speaker, text: line.text, voice: freshVoice(line),
         startFrame: f(t), durationFrames: Math.max(1, f(dur)),
       });
       if (line.advance) {

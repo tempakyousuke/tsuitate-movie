@@ -1,4 +1,5 @@
-import { newId, segmentStartPly, type Episode, type Line, type LineTiming, type Segment } from "../src/episode/episode.ts";
+import { useState } from "react";
+import { freshVoice, newId, segmentStartPly, type Episode, type Line, type LineTiming, type Segment } from "../src/episode/episode.ts";
 import { stepIndexOf, type KifuStep } from "../src/kifu/steps.ts";
 import type { View } from "../src/render/BoardView.tsx";
 import type { Timeline } from "../src/timeline/timeline.ts";
@@ -12,6 +13,8 @@ interface Props {
   onSeek: (frame: number) => void;
   onChange: (patch: Partial<Segment>) => void;
   onMergeNext: () => void;
+  /** ゆっくり（AquesTalk）のセリフ1つを音声にする */
+  onMakeVoice: (line: Line) => Promise<void>;
 }
 
 const VIEWS: { value: View; label: string }[] = [
@@ -20,7 +23,7 @@ const VIEWS: { value: View; label: string }[] = [
   { value: "god", label: "神視点" },
 ];
 
-export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, onChange, onMergeNext }: Props) {
+export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, onChange, onMergeNext, onMakeVoice }: Props) {
   const seg = episode.segments[index]!;
   const startPly = segmentStartPly(episode, index);
   const segSteps = steps.filter((s) => s.ref.ply >= startPly && s.ref.ply <= seg.endPly);
@@ -78,6 +81,7 @@ export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, 
             onChange={(patch) => updateLine(i, patch)}
             onMove={(d) => moveLine(i, d)}
             onDelete={() => setLines(seg.lines.filter((_, j) => j !== i))}
+            onMakeVoice={() => onMakeVoice(line)}
           />
         );
       })}
@@ -89,7 +93,7 @@ export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, 
   );
 }
 
-function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, onChange, onMove, onDelete }: {
+function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, onChange, onMove, onDelete, onMakeVoice }: {
   line: Line;
   episode: Episode;
   options: KifuStep[];
@@ -100,8 +104,17 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, 
   onChange: (patch: Partial<Line>) => void;
   onMove: (delta: number) => void;
   onDelete: () => void;
+  onMakeVoice: () => Promise<void>;
 }) {
   const speaker = episode.speakers.find((s) => s.id === line.speaker);
+  const voice = freshVoice(line);
+  const [making, setMaking] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const makeVoice = () => {
+    setMaking(true);
+    setVoiceError(null);
+    onMakeVoice().catch((e: Error) => setVoiceError(e.message)).finally(() => setMaking(false));
+  };
   const target = line.advance ? options.find((s) => s.ref.ply === line.advance!.to.ply && s.ref.attempt === line.advance!.to.attempt) : undefined;
   const at = line.advance?.at ?? { kind: "end" };
   // このセリフで進める手数（前のセリフで進めた位置の次から target まで。反則も1つと数える）
@@ -120,6 +133,15 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, 
           {episode.speakers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <button title="このセリフから再生位置を合わせる" onClick={onSeek}>▶</button>
+        {voice
+          ? <span className="voice-badge ok" title={`${voice.durationSec.toFixed(1)}秒`}>音声あり</span>
+          : <span className="voice-badge" title="上の「音声…」から作成・取り込みできます">{line.voice ? "音声が古い" : "音声なし"}</span>}
+        {/* ゆっくりはその場で作り直せる（ゆかりは A.I.VOICE2 で書き出して「音声…」から取り込む） */}
+        {!voice && speaker?.engine === "aquestalk" && line.text.trim() && (
+          <button className="make-voice" disabled={making} onClick={makeVoice}>
+            {making ? "作成中…" : line.voice ? "作り直す" : "音声を作る"}
+          </button>
+        )}
         <span className="spacer" />
         <button disabled={isFirst} onClick={() => onMove(-1)} title="上へ">↑</button>
         <button disabled={isLast} onClick={() => onMove(1)} title="下へ">↓</button>
@@ -175,6 +197,7 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, 
         <p className="note">{stepCount}手分（反則も1つと数える）を、そこから自動再生と同じ間隔で1つずつ進めます。</p>
       )}
       {line.advance && !target && <p className="warn">進める先が前のセリフより前になっています。選び直してください。</p>}
+      {voiceError && <p className="warn">音声を作れませんでした: {voiceError}</p>}
     </div>
   );
 }

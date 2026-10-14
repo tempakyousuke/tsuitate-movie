@@ -1,5 +1,6 @@
-import type { Episode } from "../src/episode/episode.ts";
+import type { Episode, Voice } from "../src/episode/episode.ts";
 import type { Color } from "../src/shogi/position.ts";
+import type { ImportResult } from "./voices.ts";
 
 export interface LoadedEpisode {
   episode: Episode;
@@ -23,4 +24,8 @@ export const api = {
   create: (name: string, kifuText: string, player: Color) =>
     request<LoadedEpisode>("POST", "/episodes", { name, kifuText, player }),
   save: (name: string, episode: Episode) => request<{ ok: true }>("PUT", `/episodes/${name}`, episode),
+  aquestalk: (name: string, lineId: string, preset: string, text: string) =>
+    request<Voice>("POST", `/episodes/${name}/voices/aquestalk`, { lineId, preset, text }),
+  importAivoice: (name: string, folder: string, lines: { id: string; text: string }[]) =>
+    request<ImportResult>("POST", `/episodes/${name}/voices/import`, { folder, lines }),
 };

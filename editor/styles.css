@@ -116,3 +116,15 @@ textarea { width: 100%; resize: vertical; }
 .dialog h2 { margin: 0; }
 .dialog label { display: flex; flex-direction: column; gap: 4px; }
 .dialog .buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+.voice-panel { width: 640px; max-height: 90vh; overflow-y: auto; }
+.voice-speaker { border-left: 4px solid; padding-left: 12px; }
+.voice-speaker h3 { margin: 0 0 8px; font-size: 15px; }
+.voice-speaker small { color: var(--muted); font-weight: normal; }
+.voice-panel .error { cursor: default; border-radius: 4px; }
+.voice-panel .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.voice-panel .steps input { flex: 1; }
+.progress { color: var(--muted); font-size: 13px; }
+.voice-badge { font-size: 11px; padding: 0 6px; border-radius: 4px; background: #3a3f4d; color: var(--muted); }
+.voice-badge.ok { background: #2a5a34; color: #e8f5ec; }
+.make-voice { font-size: 11px; padding: 1px 8px; }

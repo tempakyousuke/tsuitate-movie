@@ -1,8 +1,8 @@
 import { Player, type PlayerRef } from "@remotion/player";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  DEFAULT_GOD_REPLAY, mergeWithNext, segmentIndexOfPly, segmentStartPly, splitSegment, updateSegment, type Episode,
-  type GodReplay,
+  DEFAULT_GOD_REPLAY, mergeWithNext, segmentIndexOfPly, segmentStartPly, setVoices, speechText, splitSegment,
+  updateSegment, type Episode, type GodReplay,
 } from "../src/episode/episode.ts";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
 import { kifuSteps } from "../src/kifu/steps.ts";
@@ -10,20 +10,23 @@ import { HEIGHT, WIDTH } from "../src/render/BoardView.tsx";
 import { EpisodeVideo, FPS, type MoveSound } from "../src/render/EpisodeVideo.tsx";
 import { checkInfo } from "../src/shogi/attack.ts";
 import { COLOR_MARK, attemptLabel } from "../src/shogi/notation.ts";
-import { buildTimeline, entryAt } from "../src/timeline/timeline.ts";
+import { buildTimeline, entryAt, lineAt } from "../src/timeline/timeline.ts";
+import { api } from "./client.ts";
 import { SegmentEditor } from "./SegmentEditor.tsx";
 
 /** 棋譜一覧の行のキー。attempt があれば ply 手目の前の反則 */
 const stepKey = (ply: number, attempt?: number) => (attempt === undefined ? `${ply}` : `${ply}:${attempt}`);
 
 interface Props {
+  /** 台本の名前（public/episodes/<名前>/） */
+  name: string;
   episode: Episode;
   kifuText: string;
   moveSound: MoveSound;
   onChange: (episode: Episode) => void;
 }
 
-export function EpisodeEditor({ episode, kifuText, moveSound, onChange }: Props) {
+export function EpisodeEditor({ name, episode, kifuText, moveSound, onChange }: Props) {
   const { kifu, positions, steps } = useMemo(() => {
     const kifu = parseKif(kifuText);
     return { kifu, positions: replay(kifu), steps: kifuSteps(kifu) };
@@ -32,11 +35,26 @@ export function EpisodeEditor({ episode, kifuText, moveSound, onChange }: Props)
   const [selected, setSelected] = useState(0);
   const [frame, setFrame] = useState(0);
   const playerRef = useRef<PlayerRef>(null);
+  const inputProps = useMemo(() => ({ episode, kifuText, moveSound }), [episode, kifuText, moveSound]);
+  const timelineRef = useRef(timeline);
+  timelineRef.current = timeline;
+  const episodeRef = useRef(episode);
+  episodeRef.current = episode;
 
+  // 再生中に毎フレーム描き直すと、セリフの多い台本では重くなってプレビューの映像と音声がずれ、
+  // Player が音声を巻き戻して同じ言葉が繰り返して聞こえる。表示中の手かセリフが変わったときだけ更新する
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-    const onFrame = (e: { detail: { frame: number } }) => setFrame(e.detail.frame);
+    let marker = "";
+    const onFrame = (e: { detail: { frame: number } }) => {
+      const f = e.detail.frame;
+      const tl = timelineRef.current;
+      const next = `${entryAt(tl, f).entry.startFrame}|${lineAt(tl, f)?.lineId ?? ""}`;
+      if (next === marker) return;
+      marker = next;
+      setFrame(f);
+    };
     player.addEventListener("frameupdate", onFrame);
     return () => player.removeEventListener("frameupdate", onFrame);
   }, []);
@@ -131,7 +149,7 @@ export function EpisodeEditor({ episode, kifuText, moveSound, onChange }: Props)
         <Player
           ref={playerRef}
           component={EpisodeVideo}
-          inputProps={{ episode, kifuText, moveSound }}
+          inputProps={inputProps}
           durationInFrames={timeline.durationInFrames}
           compositionWidth={WIDTH}
           compositionHeight={HEIGHT}
@@ -163,6 +181,12 @@ export function EpisodeEditor({ episode, kifuText, moveSound, onChange }: Props)
             onSeek={seek}
             onChange={(patch) => onChange(updateSegment(episode, segIndex, patch))}
             onMergeNext={() => onChange(mergeWithNext(episode, segIndex))}
+            onMakeVoice={async (line) => {
+              const speaker = episode.speakers.find((s) => s.id === line.speaker)!;
+              const voice = await api.aquestalk(name, line.id, speaker.preset ?? speaker.name, speechText(line));
+              // 作成中に編集されていても消さないよう、最新の台本に入れる
+              onChange(setVoices(episodeRef.current, { [line.id]: voice }));
+            }}
           />
         )}
       </section>

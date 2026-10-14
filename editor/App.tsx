@@ -4,6 +4,7 @@ import { DEFAULT_MOVE_SOUND, availableMoveSound, type MoveSound } from "../src/r
 import type { Color } from "../src/shogi/position.ts";
 import { api, type LoadedEpisode } from "./client.ts";
 import { EpisodeEditor } from "./EpisodeEditor.tsx";
+import { VoicePanel } from "./VoicePanel.tsx";
 
 type SaveState = "saved" | "saving" | "error";
 const SAVE_DELAY_MS = 600;
@@ -12,6 +13,7 @@ export function App() {
   const [names, setNames] = useState<string[]>([]);
   const [current, setCurrent] = useState<(LoadedEpisode & { name: string }) | null>(null);
   const [creating, setCreating] = useState(false);
+  const [voicing, setVoicing] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [error, setError] = useState<string | null>(null);
   const [moveSound, setMoveSound] = useState<MoveSound>(null);
@@ -71,6 +73,7 @@ export function App() {
         <button onClick={() => setCreating(true)}>＋ 新しい台本</button>
         {current && (
           <>
+            <button onClick={() => setVoicing(true)}>音声…</button>
             <span className={`save save-${saveState}`}>
               {{ saved: "保存済み", saving: "保存中…", error: "保存エラー" }[saveState]}
             </span>
@@ -83,6 +86,9 @@ export function App() {
       </header>
       {error && <div className="error" onClick={() => setError(null)}>{error}（クリックで閉じる）</div>}
       {creating && <NewEpisodeDialog onCreated={created} onCancel={() => setCreating(false)} />}
+      {voicing && current && (
+        <VoicePanel name={current.name} episode={current.episode} onChange={change} onClose={() => setVoicing(false)} />
+      )}
       {current
         ? <EpisodeEditor key={current.name} {...current} moveSound={moveSound} onChange={change} />
         : <p className="empty">台本を選ぶか、「新しい台本」から将棋クエストの棋譜を貼り付けて作ってください。</p>}

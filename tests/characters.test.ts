@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultEpisode, type Episode } from "../src/episode/episode.ts";
-import { DEFAULT_EXPRESSION, castOf, eyeStage, mouthStage, spriteLayers } from "../src/render/characters.ts";
+import { DEFAULT_EXPRESSION, castOf, eyeStage, mouthStage, spriteParts } from "../src/render/characters.ts";
 
 const withLines = (speakers: string[]): Episode => {
   const base = defaultEpisode(10, "sente");
@@ -23,11 +23,11 @@ describe("castOf", () => {
 });
 
 describe("立ち絵のパーツ", () => {
-  it("目と口は段階に応じて a〜e のファイルを使う", () => {
-    const layers = spriteLayers("reimu", DEFAULT_EXPRESSION, 5, 2);
-    expect(layers).toContain("characters/reimu/目/00e.png");
-    expect(layers).toContain("characters/reimu/口/00b.png");
-    expect(spriteLayers("reimu", DEFAULT_EXPRESSION, 0, 0)).toContain("characters/reimu/目/00.png");
+  it("目と口は基本形と a〜e の6段階を持ち、ほかのパーツは1枚", () => {
+    const parts = Object.fromEntries(spriteParts("reimu", DEFAULT_EXPRESSION).map((p) => [p.layer, p.srcs]));
+    expect(parts["目"]).toEqual(["", "a", "b", "c", "d", "e"].map((s) => `characters/reimu/目/00${s}.png`));
+    expect(parts["口"]![2]).toBe("characters/reimu/口/00b.png");
+    expect(parts["体"]).toEqual(["characters/reimu/体/00.png"]);
   });
 
   it("まばたきはたまにだけ起き、人によって時刻がずれる", () => {

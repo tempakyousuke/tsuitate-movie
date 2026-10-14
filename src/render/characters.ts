@@ -1,4 +1,4 @@
-import type { Episode, Speaker } from "../episode/episode.ts";
+import type { Episode, Speaker, Voice } from "../episode/episode.ts";
 
 /**
  * 立ち絵（きつね式ゆっくり）。素材は再配布できないのでリポジトリには入れず、assets/<フォルダ>/ に展開し、
@@ -31,11 +31,15 @@ export const DEFAULT_EXPRESSION: Expression = { 体: "00", 顔: "00a", 眉: "03"
 
 const STAGES = ["", "a", "b", "c", "d", "e"];
 
-/** 1人分のパーツの画像パス（public/ からの相対パス）。eye・mouth は 0（基本形）〜5（e） */
-export function spriteLayers(speakerId: string, expression: Expression, eye: number, mouth: number): string[] {
+/**
+ * 1人分のパーツ（下から重ねる順）。目と口は段階 0（基本形）〜5（e）の6枚を持つ。
+ * 再生中に画像の src を差し替えると、プレビューが読み込みのたびに止まって音声が少し巻き戻る
+ * （セリフが繰り返して聞こえる）ので、全段階を最初から重ねておき、見せる1枚だけを切り替える
+ */
+export function spriteParts(speakerId: string, expression: Expression): { layer: string; srcs: string[] }[] {
   return LAYERS.map((layer) => {
-    const name = layer === "目" ? expression.目 + STAGES[eye] : layer === "口" ? expression.口 + STAGES[mouth] : expression[layer];
-    return `characters/${speakerId}/${layer}/${name}.png`;
+    const names = layer === "目" || layer === "口" ? STAGES.map((s) => expression[layer] + s) : [expression[layer]];
+    return { layer, srcs: names.map((name) => `characters/${speakerId}/${layer}/${name}.png`) };
   });
 }
 
@@ -64,8 +68,12 @@ export function eyeStage(frame: number, fps: number, seed: string): number {
 /** 音声がないセリフで口を開け閉めする段階（1フレームずつ、1周で約1音） */
 const TALK = [1, 3, 5, 4, 2, 0];
 
-/** 話している間の口の段階（0 = 閉じている）。local はセリフが始まってからのフレーム数 */
-export const mouthStage = (local: number): number => TALK[local % TALK.length]!;
+/**
+ * 話している間の口の段階（0 = 閉じている）。local はセリフが始まってからのフレーム数。
+ * 音声があればその音量に合わせ、なければ一定のリズムで開け閉めする
+ */
+export const mouthStage = (local: number, voice?: Voice): number =>
+  voice ? Number(voice.mouth[local] ?? 0) : TALK[local % TALK.length]!;
 
 export type Side = "left" | "right";
 
