@@ -20,17 +20,63 @@ const AQUESTALK_ERRORS: Record<number, string> = {
 const FPS = 30;
 
 /**
- * セリフ音声のファイル。public/episodes/<名前>/voices/<セリフid>-<文のハッシュ>.wav に置く。
- * 文が変わると名前も変わるので、プレビューで古い音声がキャッシュから再生されることがない
+ * 話者による音量の差をなくすため、セリフ音声はすべてこのラウドネスにそろえる。
+ * そのままだと AquesTalk は約 -14 LUFS、A.I.VOICE2 は約 -24 LUFS で、ゆっくりの方がかなり大きい
  */
-async function store(episodeDir: string, episodeName: string, lineId: string, text: string, wav: Buffer): Promise<Voice> {
+const TARGET_LUFS = -18;
+/** 上げすぎて音が割れないよう、サンプルのピークはここまでにとどめる */
+const MAX_PEAK_DB = -1;
+
+/** WAV の統合ラウドネス（LUFS）とサンプルピーク（dBFS）を ffmpeg で測る */
+async function measure(path: string): Promise<{ lufs: number; peak: number }> {
+  const { stderr } = await run("ffmpeg", ["-hide_banner", "-nostats", "-i", path, "-af", "ebur128=peak=sample", "-f", "null", "-"]);
+  const lufs = Number(stderr.match(/I:\s+(-?[\d.]+) LUFS\s*\n\s*Threshold/)?.[1]);
+  const peak = Number(stderr.match(/Peak:\s+(-?[\d.inf]+) dBFS/)?.[1]);
+  if (!Number.isFinite(lufs)) throw new Error("音量を測れません（ffmpeg が必要です）");
+  return { lufs, peak: Number.isFinite(peak) ? peak : -Infinity };
+}
+
+/** 音量を TARGET_LUFS にそろえた WAV（16bit PCM、サンプリング周波数はそのまま）と、かけた増幅量 */
+async function normalizeLoudness(tmpDir: string, lineId: string, wav: Buffer): Promise<{ wav: Buffer; gainDb: number }> {
+  const src = join(tmpDir, `.normalize-${lineId}-in.wav`);
+  const dst = join(tmpDir, `.normalize-${lineId}-out.wav`);
+  try {
+    await writeFile(src, wav);
+    const { lufs, peak } = await measure(src);
+    // 無音に近いセリフは上げない
+    if (lufs < -60) return { wav, gainDb: 0 };
+    const gainDb = Math.round(Math.min(TARGET_LUFS - lufs, MAX_PEAK_DB - peak) * 10) / 10;
+    await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", src, "-af", `volume=${gainDb}dB`, "-c:a", "pcm_s16le", dst]);
+    return { wav: await readFile(dst), gainDb };
+  } finally {
+    await rm(src, { force: true });
+    await rm(dst, { force: true });
+  }
+}
+
+/**
+ * セリフ音声のファイル。音量をそろえてから public/episodes/<名前>/voices/<セリフid>-<ハッシュ>.wav に置く。
+ * 文や音量が変わると名前も変わるので、プレビューで古い音声がキャッシュから再生されることがない
+ */
+async function store(episodeDir: string, episodeName: string, lineId: string, text: string, raw: Buffer): Promise<Voice> {
   const dir = join(episodeDir, "voices");
   await mkdir(dir, { recursive: true });
+  const { wav, gainDb } = await normalizeLoudness(episodeDir, lineId, raw);
   for (const f of await readdir(dir)) if (f.startsWith(`${lineId}-`)) await rm(join(dir, f));
-  const file = `${lineId}-${createHash("sha1").update(text).digest("hex").slice(0, 8)}.wav`;
+  const hash = createHash("sha1").update(`${text}\n${TARGET_LUFS}\n${gainDb}`).digest("hex").slice(0, 8);
+  const file = `${lineId}-${hash}.wav`;
   await writeFile(join(dir, file), wav);
   const { durationSec, mouth } = analyzeVoice(parseWav(wav), FPS);
-  return { src: `episodes/${episodeName}/voices/${file}`, durationSec, text, mouth };
+  return { src: `episodes/${episodeName}/voices/${file}`, durationSec, text, mouth, lufs: TARGET_LUFS };
+}
+
+/** 音量をそろえる前に作った音声を、そろえ直す */
+export async function renormalize(episodeDir: string, episodeName: string, lineId: string, voice: Voice): Promise<Voice> {
+  const prefix = `episodes/${episodeName}/voices/`;
+  const file = voice.src.slice(prefix.length);
+  if (!voice.src.startsWith(prefix) || !/^[\w-]+\.wav$/.test(file)) throw new Error(`音声の場所が不正です: ${voice.src}`);
+  const raw = await readFile(join(episodeDir, "voices", file));
+  return store(episodeDir, episodeName, lineId, voice.text, raw);
 }
 
 /** AquesTalkPlayer でゆっくりのセリフを1つ作る */

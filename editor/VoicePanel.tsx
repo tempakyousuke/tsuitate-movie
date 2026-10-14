@@ -48,6 +48,7 @@ export function VoicePanel({ name, episode, onChange, onClose }: Props) {
         <p className="note">
           セリフ（読みを指定していれば読み）を音声にします。セリフを書き換えると、その音声は古いものとして使われなくなるので、作り直してください。
         </p>
+        <NormalizeSection name={name} lines={lines.filter((l) => freshVoice(l) && freshVoice(l)!.lufs === undefined)} onVoices={addVoices} />
         {speakers.map((s) => (
           <section key={s.id} className="voice-speaker" style={{ borderLeftColor: s.color }}>
             <h3>
@@ -65,6 +66,44 @@ export function VoicePanel({ name, episode, onChange, onClose }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** 音量をそろえる仕組みを入れる前に作った音声を、そろえ直す（今後作る・取り込む音声は自動でそろう） */
+function NormalizeSection({ name, lines, onVoices }: {
+  name: string; lines: Line[]; onVoices: (v: Record<string, Voice>) => void;
+}) {
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (lines.length === 0 && !progress) return null;
+
+  const run = async () => {
+    setError(null);
+    setProgress({ done: 0, total: lines.length });
+    for (const [i, line] of lines.entries()) {
+      try {
+        onVoices({ [line.id]: await api.normalizeVoice(name, line.id, line.voice!) });
+      } catch (e) {
+        setError(`「${line.text.slice(0, 20)}」: ${(e as Error).message}`);
+        return;
+      }
+      setProgress({ done: i + 1, total: lines.length });
+    }
+  };
+
+  return (
+    <section className="voice-speaker" style={{ borderLeftColor: "var(--accent)" }}>
+      <h3>音量をそろえる</h3>
+      <p className="note">
+        話者によって音量が違う（ゆっくりが大きい）ので、音声はすべて同じ音量（-18 LUFS）にそろえます。
+        これから作る・取り込む音声は自動でそろいます。
+      </p>
+      <button className="primary" disabled={lines.length === 0 || (progress !== null && progress.done < progress.total)} onClick={run}>
+        {lines.length === 0 ? "すべてそろっています" : `作成済みの ${lines.length} 件の音量をそろえる`}
+      </button>
+      {progress && <span className="progress">　{progress.done} / {progress.total}</span>}
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }
 

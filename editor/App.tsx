@@ -18,6 +18,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [moveSound, setMoveSound] = useState<MoveSound>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pendingSave = useRef<{ name: string; episode: Episode } | null>(null);
 
   useEffect(() => {
     api.list().then(setNames, (e: Error) => setError(e.message));
@@ -37,6 +38,31 @@ export function App() {
     );
   };
 
+  // 保存待ちのままタブを閉じても編集が消えないようにする。閉じる前に確認を出しつつすぐ保存を始め、
+  // それでも閉じられたら keepalive で送る（keepalive は 64KB までなので、長い台本は確認の間の保存が頼り）
+  useEffect(() => {
+    const confirmLeave = (e: BeforeUnloadEvent) => {
+      const pending = pendingSave.current;
+      if (!pending) return;
+      clearTimeout(saveTimer.current);
+      api.save(pending.name, pending.episode).then(() => {
+        if (pendingSave.current !== pending) return;
+        pendingSave.current = null;
+        setSaveState("saved");
+      });
+      e.preventDefault();
+    };
+    const flush = () => {
+      if (pendingSave.current) api.saveOnUnload(pendingSave.current.name, pendingSave.current.episode);
+    };
+    window.addEventListener("beforeunload", confirmLeave);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("beforeunload", confirmLeave);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
   /** 編集のたびに呼ばれる。少し待ってからまとめて保存する */
   const change = (episode: Episode) => {
     if (!current) return;
@@ -44,9 +70,16 @@ export function App() {
     setSaveState("saving");
     clearTimeout(saveTimer.current);
     const name = current.name;
+    const pending = { name, episode };
+    pendingSave.current = pending;
     saveTimer.current = setTimeout(() => {
       api.save(name, episode).then(
-        () => setSaveState("saved"),
+        () => {
+          // 保存が終わるまでは「保存待ち」として残し、その間に閉じられても送り直せるようにする
+          if (pendingSave.current !== pending) return;
+          pendingSave.current = null;
+          setSaveState("saved");
+        },
         (e: Error) => {
           setSaveState("error");
           setError(`保存に失敗しました: ${e.message}`);

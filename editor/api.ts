@@ -3,10 +3,10 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { Plugin } from "vite";
-import { defaultEpisode, type Episode } from "../src/episode/episode.ts";
+import { defaultEpisode, type Episode, type Voice } from "../src/episode/episode.ts";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
 import type { Color } from "../src/shogi/position.ts";
-import { generateAquesTalk, importAivoice } from "./voices.ts";
+import { generateAquesTalk, importAivoice, renormalize } from "./voices.ts";
 
 /**
  * エディタ用の API（開発サーバーのミドルウェア）。台本と棋譜を public/episodes/<名前>/ に読み書きする。
@@ -16,6 +16,7 @@ import { generateAquesTalk, importAivoice } from "./voices.ts";
  *   PUT  /api/episodes/:name    → script.json を上書き保存
  *   POST /api/episodes/:name/voices/aquestalk → ゆっくりのセリフを1つ音声にする { lineId, preset, text } → Voice
  *   POST /api/episodes/:name/voices/import    → A.I.VOICE2 の書き出しフォルダを取り込む { folder, lines } → ImportResult
+ *   POST /api/episodes/:name/voices/normalize → 音量をそろえる前の音声をそろえ直す { lineId, voice } → Voice
  */
 export function episodeApi(publicDir: string): Plugin {
   const episodesDir = join(publicDir, "episodes");
@@ -26,7 +27,7 @@ export function episodeApi(publicDir: string): Plugin {
 
   const routes = async (req: IncomingMessage, url: URL): Promise<unknown> => {
     const name = url.pathname.match(/^\/episodes\/([^/]+)$/)?.[1];
-    const [, voiceName, voiceAction] = url.pathname.match(/^\/episodes\/([^/]+)\/voices\/(aquestalk|import)$/) ?? [];
+    const [, voiceName, voiceAction] = url.pathname.match(/^\/episodes\/([^/]+)\/voices\/(aquestalk|import|normalize)$/) ?? [];
 
     if (voiceName && req.method === "POST") {
       const dir = dirOf(voiceName);
@@ -35,6 +36,10 @@ export function episodeApi(publicDir: string): Plugin {
         if (voiceAction === "aquestalk") {
           const body = (await readJson(req)) as { lineId: string; preset: string; text: string };
           return await generateAquesTalk(dir, voiceName, safeId(body.lineId), body.preset, body.text);
+        }
+        if (voiceAction === "normalize") {
+          const body = (await readJson(req)) as { lineId: string; voice: Voice };
+          return await renormalize(dir, voiceName, safeId(body.lineId), body.voice);
         }
         const body = (await readJson(req)) as { folder: string; lines: { id: string; text: string }[] };
         return await importAivoice(dir, voiceName, body.folder, body.lines.map((l) => ({ ...l, id: safeId(l.id) })));

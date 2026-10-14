@@ -24,8 +24,16 @@ export const api = {
   create: (name: string, kifuText: string, player: Color) =>
     request<LoadedEpisode>("POST", "/episodes", { name, kifuText, player }),
   save: (name: string, episode: Episode) => request<{ ok: true }>("PUT", `/episodes/${name}`, episode),
+  /** ページを閉じる途中でも送り切る（keepalive）。結果は待たない */
+  saveOnUnload: (name: string, episode: Episode) => {
+    void fetch(`/api/episodes/${name}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(episode), keepalive: true,
+    });
+  },
   aquestalk: (name: string, lineId: string, preset: string, text: string) =>
     request<Voice>("POST", `/episodes/${name}/voices/aquestalk`, { lineId, preset, text }),
   importAivoice: (name: string, folder: string, lines: { id: string; text: string }[]) =>
     request<ImportResult>("POST", `/episodes/${name}/voices/import`, { folder, lines }),
+  normalizeVoice: (name: string, lineId: string, voice: Voice) =>
+    request<Voice>("POST", `/episodes/${name}/voices/normalize`, { lineId, voice }),
 };
