@@ -2,10 +2,7 @@ import type { IllegalAttempt, Kifu } from "../kifu/parseKif.ts";
 import { checkInfo, type CheckInfo } from "../shogi/attack.ts";
 import { COLOR_MARK, attemptLabel } from "../shogi/notation.ts";
 import { squareIndex, type Color, type Piece, type Position, type Square } from "../shogi/position.ts";
-import { entryAt, type Timeline } from "../timeline/timeline.ts";
-
-/** 駒が移動元から移動先へ滑るフレーム数 */
-export const SLIDE_FRAMES = 8;
+import { SLIDE_FRAMES, entryAt, type Timeline } from "../timeline/timeline.ts";
 
 export interface Scene {
   /** 盤に置く局面（移動中の駒は除いてある） */
@@ -24,6 +21,18 @@ export interface Scene {
   check: CheckInfo | null;
   /** 王手が告げられてからのフレーム数。この場面で告げられたのでなければ null */
   checkAnnouncedAt: number | null;
+  /** ここまでに告げられた反則の回数（表示中の反則を含む）。審判が告げるので両者に見える */
+  illegalCount: Record<Color, number>;
+}
+
+/** ply 手目までの反則の回数。attempt を渡すと ply 手目の前の反則のうち attempt 番目までを数える */
+export function illegalCountUntil(kifu: Kifu, ply: number, attempt?: number): Record<Color, number> {
+  const count: Record<Color, number> = { sente: 0, gote: 0 };
+  for (const move of kifu.moves) {
+    if (move.ply > ply) break;
+    count[move.color] += move.ply === ply && attempt !== undefined ? attempt + 1 : move.attemptsBefore.length;
+  }
+  return count;
 }
 
 /** frame の時点の画面内容。positions は replay(kifu) の結果 */
@@ -33,7 +42,7 @@ export function sceneAt(kifu: Kifu, positions: Position[], timeline: Timeline, f
 
   const base: Scene = {
     position: positions[0]!, sliding: null, lastMove: null, attempt: null, ply: 0, caption: null,
-    check: null, checkAnnouncedAt: null,
+    check: null, checkAnnouncedAt: null, illegalCount: { sente: 0, gote: 0 },
   };
   const settled = (ply: number): Scene => {
     const move = kifu.moves[ply - 1];
@@ -41,6 +50,7 @@ export function sceneAt(kifu: Kifu, positions: Position[], timeline: Timeline, f
       ...base,
       position: positions[ply]!,
       ply,
+      illegalCount: illegalCountUntil(kifu, ply),
       check: checkInfo(positions[ply]!),
       lastMove: move ? { color: move.color, to: move.to } : null,
       caption: move ? { color: move.color, text: COLOR_MARK[move.color] + move.notation } : null,
@@ -50,14 +60,13 @@ export function sceneAt(kifu: Kifu, positions: Position[], timeline: Timeline, f
   switch (step.type) {
     case "initial":
       return base;
-    case "end":
-      return settled(kifu.moves.length);
     case "attempt": {
       const move = kifu.moves[step.ply - 1]!;
       const attempt = move.attemptsBefore[step.index]!;
       return {
         ...settled(step.ply - 1),
         attempt: { color: move.color, attempt, local },
+        illegalCount: illegalCountUntil(kifu, step.ply, step.index),
         caption: { color: move.color, text: `${COLOR_MARK[move.color]}${attemptLabel(attempt)}` },
       };
     }
@@ -75,6 +84,7 @@ export function sceneAt(kifu: Kifu, positions: Position[], timeline: Timeline, f
         position: { ...before, board },
         sliding: { piece: { color: move.color, kind: move.piece }, from: move.from, to: move.to, t: local / SLIDE_FRAMES },
         ply: step.ply,
+        illegalCount: illegalCountUntil(kifu, step.ply),
         lastMove: null,
         caption: { color: move.color, text: COLOR_MARK[move.color] + move.notation },
       };

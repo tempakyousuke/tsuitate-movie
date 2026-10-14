@@ -10,4 +10,7 @@ public/sounds/
 
 # 実戦の棋譜（対戦相手のユーザー名を含む）
 sample.txt
-kifu/
+/kifu/
+public/episodes/*/kifu.kif
+# 生成・取り込んだ音声（A.I.VOICE2 の生成音声は配布禁止）
+public/episodes/*/voices/

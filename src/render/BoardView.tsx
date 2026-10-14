@@ -36,16 +36,25 @@ const COLORS = {
   panelText: "#f2efe8",
 };
 
+/** 将棋クエストのついたて将棋は反則を9回までできて、10回目で負け */
+export const ILLEGAL_LIMIT = 9;
+
+/** 対局者欄に出す名前とレート */
+export interface PlayerLabel {
+  name: string;
+  rating: number | null;
+}
+
 interface Props {
   scene: Scene;
   view: View;
   /** 動画の主役（自分）の手番。神視点での「かけた／かけられた」の向きに使う */
   player: Color;
-  names: Record<Color, string>;
+  players: Record<Color, PlayerLabel>;
   fps: number;
 }
 
-export function BoardView({ scene, view, player, names, fps }: Props) {
+export function BoardView({ scene, view, player, players, fps }: Props) {
   // 後手視点では盤を180度回す
   const flipped = view === "gote";
   const near: Color = flipped ? "gote" : "sente";
@@ -153,8 +162,10 @@ export function BoardView({ scene, view, player, names, fps }: Props) {
       <Coordinates flipped={flipped} />
       {pieces}
       {slidingNode}
-      <Hand color={far} position={scene.position} name={names[far]} hidden={!visible(far)} side="far" />
-      <Hand color={near} position={scene.position} name={names[near]} hidden={!visible(near)} side="near" />
+      <Hand color={far} position={scene.position} name={COLOR_NAME[far]} hidden={!visible(far)} side="far" />
+      <Hand color={near} position={scene.position} name={COLOR_NAME[near]} hidden={!visible(near)} side="near" />
+      <PlayerCard color={far} label={players[far]} illegal={scene.illegalCount[far]} isSelf={far === player} side="far" />
+      <PlayerCard color={near} label={players[near]} illegal={scene.illegalCount[near]} isSelf={near === player} side="near" />
       <InfoPanel scene={scene} view={view} visible={visible} />
       {scene.check && <CheckBadge given={checkGiven} announcedAt={scene.checkAnnouncedAt} fps={fps} />}
       {attemptNode}
@@ -238,6 +249,46 @@ function Hand({ color, position, name, hidden, side }: {
             )}
           </g>
         ))}
+    </g>
+  );
+}
+
+const COLOR_NAME: Record<Color, string> = { sente: "先手", gote: "後手" };
+const CARD_W = 300;
+const CARD_H = 230;
+
+/**
+ * 盤の左に置く対局者欄（名前・レート・残りの反則回数）。盤の向きに合わせて奥の対局者を上、手前を下に置く。
+ * 反則の印は色の意味に揃え、自分の反則は赤、相手の反則は緑で塗る
+ */
+function PlayerCard({ color, label, illegal, isSelf, side }: {
+  color: Color; label: PlayerLabel; illegal: number; isSelf: boolean; side: "near" | "far";
+}) {
+  const x = (BOARD_X - 180 - CARD_W) / 2;
+  const y = side === "far" ? BOARD_Y : BOARD_Y + BOARD - CARD_H;
+  const remaining = Math.max(0, ILLEGAL_LIMIT - illegal);
+  const used = isSelf ? COLORS.bad : COLORS.good;
+  const name = `${COLOR_MARK[color]}${label.name}`;
+  // 長い名前は欄の幅に収める
+  const nameFit = name.length > 11 ? { textLength: CARD_W - 40, lengthAdjust: "spacingAndGlyphs" as const } : {};
+  const pip = (CARD_W - 40) / ILLEGAL_LIMIT;
+  return (
+    <g fontFamily={FONT} fill={COLORS.panelText}>
+      <rect x={x} y={y} width={CARD_W} height={CARD_H} rx={12} fill={COLORS.panel} />
+      <text x={x + 20} y={y + 52} fontSize={36} fontWeight={700} {...nameFit}>{name}</text>
+      <text x={x + 20} y={y + 100} fontSize={28} opacity={0.75}>
+        {label.rating === null ? "レート —" : `レート ${label.rating}`}
+      </text>
+      <text x={x + 20} y={y + 158} fontSize={28}>
+        反則 残り<tspan fontSize={40} fontWeight={700} dx={8}
+          fill={remaining <= 2 ? used : COLORS.panelText}>{remaining}</tspan>
+        <tspan fontSize={24} opacity={0.6} dx={6}>/ {ILLEGAL_LIMIT}</tspan>
+      </text>
+      {Array.from({ length: ILLEGAL_LIMIT }, (_, i) => (
+        <circle key={i} cx={x + 20 + pip * (i + 0.5)} cy={y + 196} r={pip * 0.34}
+          fill={i < illegal ? used : "none"} stroke={i < illegal ? used : COLORS.panelText}
+          strokeWidth={2} opacity={i < illegal ? 1 : 0.4} />
+      ))}
     </g>
   );
 }

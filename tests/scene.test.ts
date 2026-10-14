@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
-import { SLIDE_FRAMES, sceneAt } from "../src/render/scene.ts";
+import { defaultEpisode } from "../src/episode/episode.ts";
+import { illegalCountUntil, sceneAt } from "../src/render/scene.ts";
 import { pieceAt } from "../src/shogi/position.ts";
-import { autoTimeline } from "../src/timeline/timeline.ts";
+import { SLIDE_FRAMES, buildTimeline } from "../src/timeline/timeline.ts";
 
 const kifu = parseKif(readFileSync(new URL("../public/demo.kif", import.meta.url), "utf8"));
 const positions = replay(kifu);
-const timeline = autoTimeline(kifu, { fps: 30 });
+const timeline = buildTimeline(kifu, defaultEpisode(kifu.moves.length, "sente"), 30);
 const startOf = (pred: (s: (typeof timeline.entries)[number]["step"]) => boolean) =>
   timeline.entries.find((e) => pred(e.step))!.startFrame;
 
@@ -49,5 +50,18 @@ describe("sceneAt", () => {
     expect(scene.position).toBe(positions[61]);
     expect(scene.attempt).toMatchObject({ color: "gote", attempt: { raw: "5354FU" }, local: 3 });
     expect(scene.caption?.text).toBe("△５四歩");
+  });
+
+  it("反則の回数は、反則が告げられた時点で増える", () => {
+    const before = startOf((s) => s.type === "attempt" && s.ply === 34);
+    expect(sceneAt(kifu, positions, timeline, before - 1).illegalCount).toEqual({ sente: 0, gote: 0 });
+    expect(sceneAt(kifu, positions, timeline, before).illegalCount).toEqual({ sente: 0, gote: 1 });
+
+    const second = startOf((s) => s.type === "attempt" && s.ply === 62 && s.index === 1);
+    const until61 = illegalCountUntil(kifu, 61);
+    expect(sceneAt(kifu, positions, timeline, second).illegalCount).toEqual({ ...until61, gote: until61.gote + 2 });
+    // 指し手が滑っている間も、その手の前の反則は数えたまま
+    const move62 = startOf((s) => s.type === "move" && s.ply === 62);
+    expect(sceneAt(kifu, positions, timeline, move62).illegalCount).toEqual({ ...until61, gote: until61.gote + 3 });
   });
 });

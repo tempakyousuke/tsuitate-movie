@@ -8,30 +8,50 @@
 ```sh
 pnpm test          # vitest
 pnpm typecheck     # tsc --noEmit
+pnpm editor        # 台本エディタ（http://localhost:5180）
 pnpm studio        # Remotion Studio でプレビュー（右側で props を切り替えられる）
-pnpm render        # out/replay.mp4 を書き出す（神視点）
-pnpm still out/x.png --frame=2020                      # 1フレームだけ画像に（`--` を挟むと --frame が無視される）
+pnpm exec remotion render src/index.ts Episode out/001.mp4 --props='{"episodeName":"001"}'   # 台本から書き出す
+pnpm exec remotion still src/index.ts Episode out/x.png --frame=1080 --props='{"episodeName":"demo"}'
+pnpm render        # 台本なしで棋譜を自動再生（KifuReplay、out/replay.mp4）
 pnpm exec remotion render src/index.ts KifuReplay out/replay-sente.mp4 --props='{"view":"sente"}'
 pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合成
 ```
 
-変更したら `pnpm test` と `pnpm typecheck` を通し、見た目の変更は `pnpm still` で静止画を出して確認する。
+`remotion still` で `--` を挟むと `--frame` が無視される。
+変更したら `pnpm test` と `pnpm typecheck` を通し、見た目の変更は静止画を出して確認する。エディタの変更は Chrome で実際に操作して確認する。
 
 ## 構成
 
-データは「棋譜 → 局面列 → タイムライン → フレームごとの画面内容 → 描画」と一方向に流れる。描画以外は純関数でテストしている。
+データは「棋譜 + 台本 → タイムライン → フレームごとの画面内容 → 描画」と一方向に流れる。描画以外は純関数でテストしている。
 
 | ファイル | 役割 |
 |---|---|
 | `src/kifu/parseKif.ts` | 将棋クエストからコピーした KIF を読む `parseKif()` と、全局面を作る `replay()`（`positions[n]` = n手目の後） |
+| `src/kifu/steps.ts` | 反則試行と指し手を起きた順に並べた「ステップ」（`kifuSteps()`）。台本はステップ単位で盤面を進める |
 | `src/shogi/position.ts` | 盤面・持ち駒のモデル。`applyMove()` は駒の有無と駒種の整合だけ検証（利きの合法性は見ない） |
 | `src/shogi/attack.ts` | 駒の利きと王手判定（`checkInfo()`）。棋譜に王手の記録がないので局面から計算する |
 | `src/shogi/notation.ts` | 駒の表示文字、棋譜表記 |
-| `src/timeline/timeline.ts` | 場面（初期・反則試行・指し手・終局）を並べたタイムライン。今は `autoTimeline()`（1手1秒、反則1.5秒）の仮のもの |
+| `src/episode/episode.ts` | 台本のデータ型（区間・セリフ・話者・設定）と、区間の分割・結合 |
+| `src/timeline/timeline.ts` | `buildTimeline()`: 台本から、盤面の場面・セリフ・視点切替の絶対フレームを計算する |
 | `src/render/scene.ts` | `sceneAt()`: フレーム番号 → その時点の画面内容（局面、移動中の駒、反則、王手など） |
 | `src/render/BoardView.tsx` | 盤・駒・持ち駒・情報欄の SVG 描画 |
-| `src/render/KifuReplay.tsx` | Remotion のコンポジション。`calculateMetadata` で棋譜を読み込み尺を決める。駒音の配置もここ |
-| `src/Root.tsx` | コンポジション登録と既定の props |
+| `src/render/EpisodeVideo.tsx` | 動画本体（盤面・字幕・駒音・セリフ音声）。Remotion のコンポジションとエディタのプレビューの両方で使う |
+| `src/Root.tsx` | コンポジション登録（`Episode`: 台本から、`KifuReplay`: 台本なしの自動再生） |
+| `editor/` | 台本エディタ（Vite + React + Remotion Player）。`api.ts` が開発サーバー上で台本を読み書きする |
+
+### 台本の保存場所
+
+`public/episodes/<名前>/` に `script.json`（台本、コミットする）、`kifu.kif`（棋譜、対戦相手名を含むのでコミットしない）、`voices/`（音声、コミットしない）を置く。
+エディタの開発サーバーは `public/` をルートで配信するので、Remotion の `staticFile("x")`（バンドル外では `/x` になる）がエディタでもそのまま使える。
+
+### 台本からタイムラインへの規則
+
+- 区間（`Segment`）は棋譜を先頭から区切ったもので、`endPly` までを担当する。区間ごとに視点を持つ。
+- セリフのない区間は1手1秒・反則1.5秒で自動再生する。
+- セリフは区間の頭から順に、`lineGapSec` の間を空けて並ぶ。長さは音声があればその長さ、なければ文字数 × `charSec` の見積もり。
+- セリフの `advance` で「どのステップまで」「セリフの頭／途中（割合）／終わり」に盤面を進める。複数ステップ先なら自動再生の間隔で順に進む。
+- 区間の最後の手まで届かなかった分は、セリフの後に自動再生する。盤面の場面どうしは最低10フレーム空ける（駒が滑り終わるまで）。
+- 台本に `godReplay` があれば、本編の最終局面を `endSec` 見せた後、初期局面に戻して神視点で最終手まで（反則も含めて）再生する（`Timeline.replayStart` から）。エディタでは下の帯の右端で付け外しする。
 
 ## ドメイン知識（コードから読み取りにくいもの）
 
@@ -42,6 +62,8 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
 - **`player`**: 動画の主役（ユーザー自身）の手番。神視点でも「自分」はこの側。
 - **色の意味**: 自分に有利な出来事は緑（`COLORS.good`）、不利な出来事は赤（`COLORS.bad`）。王手は「王手をかけた」が緑、「王手をかけられた」が赤。反則は相手の反則が緑、自分の反則が赤。新しい告知を足すときもこれに揃える。
 - 反則・王手の効果音は付けない（ユーザー判断）。
+- **反則の上限**: 将棋クエストのついたて将棋は9回まで反則でき、10回目で負け（`ILLEGAL_LIMIT`）。盤の左の対局者欄に残り回数を出す。反則は審判が告げるので、回数はどの視点でも両者分を出す。
+- **対局者欄**: 自分（`player`）は棋譜のユーザー名とレート、相手は「相手」とレートだけを出す（相手のユーザー名は動画に出さない）。
 
 ## 素材とライセンス（必ず守る）
 
@@ -54,11 +76,27 @@ pnpm sounds:placeholder   # ffmpeg で仮の駒音 public/sounds/koma.wav を合
   - A.I.VOICE2 結月ゆかりは個人の収益化に追加ライセンス不要。生成した音声ファイルの配布は禁止。
   - 立ち絵はきつね式ゆっくり（霊夢・魔理沙・ゆづきゆかり）が候補。AI でのアップスケールや AI 学習への利用は禁止。生成 AI で作ったゆかり画像をそのまま使うと VOCALOMAKETS のガイドライン上収益化できない。
 
+## 音声合成（調査・検証済み）
+
+- **AquesTalk（霊夢・魔理沙）は CLI で完全自動化できる**。Mac 版 AquesTalkPlayer（2025年8月〜）を実機で検証済み:
+  `/Applications/AquesTalkPlayer.app/Contents/MacOS/AquesTalkPlayer -P "れいむ" -T "テキスト" -W out.wav`
+  - プリセット名は `れいむ` / `まりさ`。ウィンドウは開かない。ライセンスキー未入力でも余計な音は入らない。
+  - `-F ファイル` でテキストファイル入力。存在しないプリセットは終了コード 29（他に 32: テキストを開けない、26: WAV を書けない）。
+  - 出力は 44kHz・モノラル・16bit。頭に約0.1秒、末尾に約0.13秒の無音がある（セリフ間の間としてそのまま使う）。
+- **A.I.VOICE2（結月ゆかり）は公式 API なし**（製品ページの動作環境に「API連携：なし」）。内部エンジンの解析や GUI 操作の自動化はしない方針。代わりに半自動にする:
+  1. エディタがゆかりのセリフを1行1セリフでコピー → A.I.VOICE2 に貼り付けて「改行位置で分割」
+  2. 「一括書き出し」（ブロック番号入りの命名規則、「テキストファイルを音声ファイルと一緒に保存する」を有効。Mac 版は UTF-8 固定）
+  3. エディタが書き出しフォルダを読み込み、同時保存されたテキストの内容で各 wav をセリフに照合する
+  - 実機で検証済み（命名規則プリセット「番号_テキスト」）: ファイル名は `001_こんにちは、結月ゆか… .wav` のように**テキストが10文字で切られ「… 」が付く**ので、ファイル名ではなく同名の `.txt` で照合する。`.txt` は UTF-8・BOM なし・末尾改行なしで、貼り付けたセリフの全文がそのまま入る。
+  - 出力は 48kHz・モノラル・16bit。頭に約0.06秒、**末尾に約0.8秒の無音**がある（AquesTalk の0.13秒より長い）ので、タイムラインでは末尾の無音を検出して詰め、話者によらず同じ間になるようにする。
+
 ## 今後の予定
 
-1. **台本（YAML）→ タイムライン**: セリフ1行ごとに盤面操作（手を進める・視点切替・反則試行の表示など）を紐づけ、`at` で start / end / 比率 / 秒数を指定できるようにする。音声 wav の長さからタイムラインを計算し、`autoTimeline()` を置き換える。視点の切り替えも台本で場面ごとに行う。
-2. セリフ音声（AquesTalkPlayer のコマンドライン、A.I.VOICE2 の一括書き出し）の取り込み。
-3. 立ち絵（パーツの口パク・まばたき）と字幕の描画。
+台本は YAML を手で書くのではなく、**専用の GUI エディタで編集する**（ユーザーの希望）。エディタの初版（区間の作成、セリフの編集、手を進めるタイミングの指定、視点、プレビュー、自動保存）はできている。
+
+1. エディタでのセリフ音声の生成・取り込み（上の「音声合成」の方式）。`Line.voice` に入れれば、タイムラインと動画は対応済み。
+2. 立ち絵（きつね式ゆっくりのパーツで口パク・まばたき）。素材はユーザーがダウンロード済みで、`assets/` に置く（再配布不可のためコミットしない）。今の字幕帯と盤面の縮小（`BOARD_SCALE`）は仮のレイアウト。
+3. エディタからの書き出し、元に戻す（undo）など。
 
 ## 作業上の注意
 

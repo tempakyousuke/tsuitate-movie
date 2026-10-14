@@ -6,6 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@11.5.3",
   "scripts": {
+    "editor": "vite --config editor/vite.config.ts",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts KifuReplay out/replay.mp4",
     "still": "remotion still src/index.ts KifuReplay",
@@ -16,12 +17,16 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "typescript": "^7.0.2",
+    "vite": "^8.3.4",
     "vitest": "^5.0.4"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.535",
     "@remotion/google-fonts": "^4.0.535",
+    "@remotion/player": "4.0.535",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "remotion": "^4.0.535"
