@@ -1,12 +1,16 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { Plugin } from "vite";
 import { defaultEpisode, type Episode, type Voice } from "../src/episode/episode.ts";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
 import type { Color } from "../src/shogi/position.ts";
 import { generateAquesTalk, importAivoice, renormalize } from "./voices.ts";
+
+const run = promisify(execFile);
 
 /**
  * エディタ用の API（開発サーバーのミドルウェア）。台本と棋譜を public/episodes/<名前>/ に読み書きする。
@@ -17,6 +21,7 @@ import { generateAquesTalk, importAivoice, renormalize } from "./voices.ts";
  *   POST /api/episodes/:name/voices/aquestalk → ゆっくりのセリフを1つ音声にする { lineId, preset, text } → Voice
  *   POST /api/episodes/:name/voices/import    → A.I.VOICE2 の書き出しフォルダを取り込む { folder, lines } → ImportResult
  *   POST /api/episodes/:name/voices/normalize → 音量をそろえる前の音声をそろえ直す { lineId, voice } → Voice
+ *   GET  /api/bgm               → public/bgm/ の曲の一覧 [{ src, name, durationSec }]
  */
 export function episodeApi(publicDir: string): Plugin {
   const episodesDir = join(publicDir, "episodes");
@@ -26,6 +31,8 @@ export function episodeApi(publicDir: string): Plugin {
   };
 
   const routes = async (req: IncomingMessage, url: URL): Promise<unknown> => {
+    if (url.pathname === "/bgm" && req.method === "GET") return listBgm(join(publicDir, "bgm"));
+
     const name = url.pathname.match(/^\/episodes\/([^/]+)$/)?.[1];
     const [, voiceName, voiceAction] = url.pathname.match(/^\/episodes\/([^/]+)\/voices\/(aquestalk|import|normalize)$/) ?? [];
 
@@ -107,6 +114,26 @@ export function episodeApi(publicDir: string): Plugin {
       });
     },
   };
+}
+
+export interface BgmFile {
+  /** public/ 以下のパス */
+  src: string;
+  name: string;
+  durationSec: number;
+}
+
+/**
+ * BGM の一覧。長さは ffprobe で測る。ファイル名は読み出したまま（macOS では濁点が NFD）を src に使うので、
+ * 開発サーバーの照合とも一致する
+ */
+async function listBgm(dir: string): Promise<BgmFile[]> {
+  if (!existsSync(dir)) return [];
+  const files = (await readdir(dir)).filter((f) => /\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(f)).sort();
+  return Promise.all(files.map(async (f) => {
+    const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", join(dir, f)]);
+    return { src: `bgm/${f}`, name: f.normalize("NFC"), durationSec: Number(stdout.trim()) };
+  }));
 }
 
 /** セリフ id はファイル名に使うので、英数字だけに限る */

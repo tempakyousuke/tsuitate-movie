@@ -1,5 +1,6 @@
 import type { Episode, Voice } from "../src/episode/episode.ts";
 import type { Color } from "../src/shogi/position.ts";
+import type { BgmFile } from "./api.ts";
 import type { ImportResult } from "./voices.ts";
 
 export interface LoadedEpisode {
@@ -34,6 +35,7 @@ export const api = {
     request<Voice>("POST", `/episodes/${name}/voices/aquestalk`, { lineId, preset, text }),
   importAivoice: (name: string, folder: string, lines: { id: string; text: string }[]) =>
     request<ImportResult>("POST", `/episodes/${name}/voices/import`, { folder, lines }),
+  listBgm: () => request<BgmFile[]>("GET", "/bgm"),
   normalizeVoice: (name: string, lineId: string, voice: Voice) =>
     request<Voice>("POST", `/episodes/${name}/voices/normalize`, { lineId, voice }),
 };

@@ -16,7 +16,24 @@ export interface Episode {
   settings: EpisodeSettings;
   /** あれば、本編の後に初期局面から最終手までを神視点で再生する（反則も含む） */
   godReplay?: GodReplay;
+  /** 動画全体で繰り返し流す BGM */
+  bgm?: Bgm;
 }
+
+export interface Bgm {
+  /** public/ 以下のパス（public/bgm/ に置く） */
+  src: string;
+  /** 曲の長さ（繰り返すつなぎ目の計算に使う） */
+  durationSec: number;
+  /** 音量（0〜1）。セリフ（-18 LUFS にそろえてある）より十分小さくする */
+  volume: number;
+}
+
+/**
+ * BGM の音量の初期値。Suno の曲は約 -14 LUFS なので、0.15 倍（約 -16.5dB）で約 -31 LUFS になり、
+ * セリフより 13dB ほど小さい
+ */
+export const DEFAULT_BGM_VOLUME = 0.15;
 
 export interface GodReplay {
   /** 1手にかける時間 */

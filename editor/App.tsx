@@ -3,10 +3,14 @@ import type { Episode } from "../src/episode/episode.ts";
 import { DEFAULT_MOVE_SOUND, availableMoveSound, type MoveSound } from "../src/render/EpisodeVideo.tsx";
 import type { Color } from "../src/shogi/position.ts";
 import { api, type LoadedEpisode } from "./client.ts";
+import { BgmControl } from "./BgmControl.tsx";
 import { EpisodeEditor } from "./EpisodeEditor.tsx";
 import { VoicePanel } from "./VoicePanel.tsx";
 
 type SaveState = "saved" | "saving" | "error";
+
+const renderCommand = (name: string) =>
+  `pnpm exec remotion render src/index.ts Episode out/${name}.mp4 --props='{"episodeName":"${name}"}'`;
 const SAVE_DELAY_MS = 600;
 
 export function App() {
@@ -107,12 +111,11 @@ export function App() {
         {current && (
           <>
             <button onClick={() => setVoicing(true)}>音声…</button>
+            <BgmControl episode={current.episode} onChange={change} />
             <span className={`save save-${saveState}`}>
               {{ saved: "保存済み", saving: "保存中…", error: "保存エラー" }[saveState]}
             </span>
-            <code className="hint">
-              pnpm exec remotion render src/index.ts Episode out/{current.name}.mp4 --props='{`{"episodeName":"${current.name}"}`}'
-            </code>
+            <code className="hint" title={renderCommand(current.name)}>{renderCommand(current.name)}</code>
           </>
         )}
         {!moveSound && <span className="warn">駒音がないので無音です</span>}

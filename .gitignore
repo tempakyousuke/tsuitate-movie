@@ -7,6 +7,8 @@ assets/
 # assets/ へのシンボリックリンク（立ち絵を staticFile で読むため）
 public/characters
 public/sounds/
+# BGM（Suno で作った曲。ライセンスは個人の購入分なので配布しない）
+public/bgm/
 *.wav
 *.mp3
 

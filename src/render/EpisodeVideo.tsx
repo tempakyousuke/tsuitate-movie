@@ -3,10 +3,11 @@ import { useMemo } from "react";
 import {
   AbsoluteFill, Html5Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig, type CalculateMetadataFunction,
 } from "remotion";
-import { defaultEpisode, type Episode, type Speaker } from "../episode/episode.ts";
+import { defaultEpisode, type Bgm, type Episode, type Speaker } from "../episode/episode.ts";
 import { parseKif, replay, type Kifu } from "../kifu/parseKif.ts";
 import { opposite, type Color } from "../shogi/position.ts";
 import { SLIDE_FRAMES, buildTimeline, lineAt, viewAt } from "../timeline/timeline.ts";
+import { bgmGain, bgmPlays } from "./bgm.ts";
 import { BoardView, HEIGHT, WIDTH, type PlayerLabel, type View } from "./BoardView.tsx";
 import {
   DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, eyeStage, mouthStage, spriteParts, type Side,
@@ -80,6 +81,16 @@ export const calculateKifuReplayMetadata: CalculateMetadataFunction<KifuReplayCo
 /** コンポジションごとの入力 props を受け取れるようにした別名（描画は EpisodeVideo と同じ） */
 export const EpisodeComposition: React.FC<EpisodeCompositionProps> = (props) => <EpisodeVideo {...props} />;
 export const KifuReplayComposition: React.FC<KifuReplayCompositionProps> = (props) => <EpisodeVideo {...props} />;
+
+/** BGM を動画の最後まで、つなぎ目をクロスフェードしながら繰り返す */
+function BgmTrack({ bgm, totalFrames, fps }: { bgm: Bgm; totalFrames: number; fps: number }) {
+  const plays = useMemo(() => bgmPlays(totalFrames, bgm.durationSec, fps), [totalFrames, bgm.durationSec, fps]);
+  return plays.map((play, i) => (
+    <Sequence key={`bgm${play.from}`} from={play.from} durationInFrames={play.durationFrames} layout="none">
+      <Html5Audio src={staticFile(bgm.src)} volume={(f) => bgm.volume * bgmGain(plays, i, f, totalFrames, fps)} />
+    </Sequence>
+  ));
+}
 
 /** 片側に count 人並べるときの立ち絵の倍率と、隣の人との間隔 */
 const spriteScale = (count: number) => (count > 1 ? 0.8 : 1);
@@ -216,6 +227,7 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
           <Html5Audio src={staticFile(moveSound.src)} trimBefore={Math.round(moveSound.leadSilenceSec * fps)} />
         </Sequence>
       ))}
+      {episode.bgm && <BgmTrack bgm={episode.bgm} totalFrames={timeline.durationInFrames} fps={fps} />}
       {timeline.lines.map((cue) => cue.voice && (
         <Sequence key={`v${cue.lineId}`} from={cue.startFrame} durationInFrames={cue.durationFrames} layout="none">
           <Html5Audio src={staticFile(cue.voice.src)} />
