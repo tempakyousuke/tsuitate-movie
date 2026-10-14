@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { freshVoice, newId, segmentStartPly, type Episode, type Line, type LineTiming, type Segment } from "../src/episode/episode.ts";
 import { stepIndexOf, type KifuStep } from "../src/kifu/steps.ts";
 import type { View } from "../src/render/BoardView.tsx";
@@ -39,12 +39,16 @@ export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, 
     lines.splice(i + delta, 0, l!);
     setLines(lines);
   };
-  const addLine = () => {
+  /** 新しいセリフを at 番目に入れる（末尾に足すときは at = セリフ数）。入れたセリフの入力欄にすぐ書けるようにする */
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const insertLine = (at: number) => {
     // 話者は直前のセリフの次の人にしておく（掛け合いを書きやすくする）
-    const prev = seg.lines.at(-1);
+    const prev = seg.lines[at - 1];
     const prevIdx = episode.speakers.findIndex((s) => s.id === prev?.speaker);
     const speaker = episode.speakers[(prevIdx + 1) % episode.speakers.length]!.id;
-    setLines([...seg.lines, { id: newId(), speaker, text: "" }]);
+    const line: Line = { id: newId(), speaker, text: "" };
+    setLines([...seg.lines.slice(0, at), line, ...seg.lines.slice(at)]);
+    setFocusId(line.id);
   };
 
   return (
@@ -70,23 +74,29 @@ export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, 
         const cue = timeline.lines.find((c) => c.lineId === line.id);
         const playing = cue && frame >= cue.startFrame && frame < cue.startFrame + cue.durationFrames;
         return (
-          <LineEditor
-            key={line.id}
-            line={line}
-            episode={episode}
-            options={options}
-            playing={!!playing}
-            isFirst={i === 0}
-            isLast={i === seg.lines.length - 1}
-            onSeek={() => cue && onSeek(cue.startFrame)}
-            onChange={(patch) => updateLine(i, patch)}
-            onMove={(d) => moveLine(i, d)}
-            onDelete={() => setLines(seg.lines.filter((_, j) => j !== i))}
-            onMakeVoice={() => onMakeVoice(line)}
-          />
+          <Fragment key={line.id}>
+            {/* セリフとセリフの間（と先頭）に挿入する。マウスを乗せたときだけ見える */}
+            <button className="insert-line" onClick={() => insertLine(i)} title="ここに新しいセリフを入れる">
+              ＋ ここにセリフを挿入
+            </button>
+            <LineEditor
+              line={line}
+              episode={episode}
+              options={options}
+              playing={!!playing}
+              isFirst={i === 0}
+              isLast={i === seg.lines.length - 1}
+              autoFocus={line.id === focusId}
+              onSeek={() => cue && onSeek(cue.startFrame)}
+              onChange={(patch) => updateLine(i, patch)}
+              onMove={(d) => moveLine(i, d)}
+              onDelete={() => setLines(seg.lines.filter((_, j) => j !== i))}
+              onMakeVoice={() => onMakeVoice(line)}
+            />
+          </Fragment>
         );
       })}
-      <button className="add" onClick={addLine}>＋ セリフを追加</button>
+      <button className="add" onClick={() => insertLine(seg.lines.length)}>＋ セリフを追加</button>
       {seg.lines.length > 0 && (
         <p className="note">最後のセリフまでに {seg.endPly}手目まで進めなかった分は、セリフの後に自動で再生します。</p>
       )}
@@ -94,13 +104,15 @@ export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, 
   );
 }
 
-function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, onChange, onMove, onDelete, onMakeVoice }: {
+function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocus, onSeek, onChange, onMove, onDelete, onMakeVoice }: {
   line: Line;
   episode: Episode;
   options: KifuStep[];
   playing: boolean;
   isFirst: boolean;
   isLast: boolean;
+  /** 追加・挿入した直後のセリフなら、入力欄にカーソルを置く */
+  autoFocus: boolean;
   onSeek: () => void;
   onChange: (patch: Partial<Line>) => void;
   onMove: (delta: number) => void;
@@ -150,6 +162,7 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, onSeek, 
       </div>
       <textarea
         rows={2}
+        autoFocus={autoFocus}
         value={line.text}
         placeholder="セリフ（字幕に出す文）"
         onChange={(e) => onChange({ text: e.target.value })}
