@@ -121,5 +121,5 @@ pnpm characters:link      # assets/ の立ち絵素材を public/characters/<話
 
 ## 作業上の注意
 
-- コミットは `main` に直接せず、ブランチを切る（現在は `feat/kifu-replay`）。
+- コミットは `main` に直接せず、作業ごとにブランチを切る（ユーザーが許可したときだけ `main` に直接コミットしてよい）。
 - `pnpm add` で build script を持つ依存（esbuild など）が入ると止まる。`pnpm approve-builds <名前>` で許可する（`pnpm-workspace.yaml` の `allowBuilds`）。
