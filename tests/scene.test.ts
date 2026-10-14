@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseKif, replay } from "../src/kifu/parseKif.ts";
 import { defaultEpisode } from "../src/episode/episode.ts";
+import { gameResult } from "../src/kifu/result.ts";
 import { illegalCountUntil, sceneAt } from "../src/render/scene.ts";
 import { pieceAt } from "../src/shogi/position.ts";
 import { SLIDE_FRAMES, buildTimeline } from "../src/timeline/timeline.ts";
@@ -50,6 +51,32 @@ describe("sceneAt", () => {
     expect(scene.position).toBe(positions[61]);
     expect(scene.attempt).toMatchObject({ color: "gote", attempt: { raw: "5354FU" }, local: 3 });
     expect(scene.caption?.text).toBe("△５四歩");
+  });
+
+  it("最終手が着いたら勝敗を出し、途中の王手では出さない", () => {
+    const result = { winner: "sente" as const, reason: "詰み" };
+    const last = startOf((s) => s.type === "move" && s.ply === kifu.moves.length);
+    expect(sceneAt(kifu, positions, timeline, last + 2, result).result).toBeNull();
+    expect(sceneAt(kifu, positions, timeline, last + SLIDE_FRAMES + 3, result).result).toEqual({ result, local: 3 });
+    const check61 = startOf((s) => s.type === "move" && s.ply === 61);
+    const scene = sceneAt(kifu, positions, timeline, check61 + SLIDE_FRAMES, result);
+    expect(scene.result).toBeNull();
+    expect(scene.checkAnnouncedAt).toBe(0);
+  });
+
+  it("10回目の反則で負けたときは、その反則を再生してから勝敗を出す", () => {
+    const fouls = (n: number) => `*illegal:${Array.from({ length: n }, () => "0055FU").join(",")}`;
+    const lost = parseKif(["手合割：平手", "1 ７六歩(77)", "2 ３四歩(33)", fouls(9), "3 ２六歩(27)", "4 反則負け", fouls(1)].join("\n"));
+    const lostPositions = replay(lost);
+    const tl = buildTimeline(lost, defaultEpisode(lost.moves.length, "sente"), 30);
+    const result = gameResult(lost, lostPositions)!;
+    const last = tl.entries.find((e) => e.step.type === "attempt" && e.step.ply === 4)!.startFrame;
+    const atFoul = sceneAt(lost, lostPositions, tl, last + 2, result);
+    expect(atFoul.attempt).not.toBeNull();
+    expect(atFoul.illegalCount.gote).toBe(10);
+    expect(atFoul.result).toBeNull();
+    expect(sceneAt(lost, lostPositions, tl, tl.durationInFrames - 1, result).result?.result)
+      .toEqual({ winner: "sente", reason: "反則負け", at: { ply: 4, attempt: 0 } });
   });
 
   it("反則の回数は、反則が告げられた時点で増える", () => {

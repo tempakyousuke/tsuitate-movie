@@ -34,8 +34,20 @@ export interface Kifu {
   sente: Player;
   gote: Player;
   moves: KifuMove[];
-  /** 投了などの終局表記。棋譜にない場合は null */
-  end: { ply: number; reason: string } | null;
+  /**
+   * 投了などの終局表記。棋譜にない場合は null。
+   * attemptsBefore は終局の行の後に続く反則（その手番の側が、指せずに終わる前に試した手。10回目の反則負けなど）
+   */
+  end: { ply: number; reason: string; attemptsBefore: IllegalAttempt[] } | null;
+}
+
+/** ply 手目の手番 */
+export const colorOfPly = (ply: number): Color => (ply % 2 === 1 ? "sente" : "gote");
+
+/** ply 手目（終局の行の手数を含む）の前に試された反則 */
+export function attemptsAt(kifu: Kifu, ply: number): IllegalAttempt[] {
+  if (ply <= kifu.moves.length) return kifu.moves[ply - 1]?.attemptsBefore ?? [];
+  return kifu.end?.ply === ply ? kifu.end.attemptsBefore : [];
 }
 
 const PIECE_NAMES: [string, PieceKind][] = [
@@ -121,12 +133,15 @@ export function parseKif(text: string): Kifu {
     if (line.trim() === "" || line.startsWith("手数----")) continue;
 
     if (line.startsWith("*illegal:")) {
-      const last = moves.at(-1);
-      if (!last) throw new Error(`${where}: 最初の指し手より前に反則手があります`);
-      last.attemptsBefore.push(...line.slice("*illegal:".length).split(",").map((s) => parseIllegalAttempt(s.trim())));
+      // 直前の行（終局の行なら終局）を指した側が、その前に試した手
+      const target = end ?? moves.at(-1);
+      if (!target) throw new Error(`${where}: 最初の指し手より前に反則手があります`);
+      target.attemptsBefore.push(...line.slice("*illegal:".length).split(",").map((s) => parseIllegalAttempt(s.trim())));
       continue;
     }
     if (line.startsWith("*") || line.startsWith("#")) continue;
+    // 終局の行の後は、反則の行だけ読む
+    if (end) continue;
 
     const header = line.match(/^([^\d\s][^：]*)：(.*)$/);
     if (header) {
@@ -141,8 +156,8 @@ export function parseKif(text: string): Kifu {
     if (ply !== moves.length + 1) throw new Error(`${where}: 手数が連続していません (${ply})`);
 
     if (END_REASONS.includes(moveText)) {
-      end = { ply, reason: moveText };
-      break;
+      end = { ply, reason: moveText, attemptsBefore: [] };
+      continue;
     }
 
     const spec = parseMoveText(moveText, moves.at(-1)?.to ?? null);
@@ -153,7 +168,7 @@ export function parseKif(text: string): Kifu {
     moves.push({
       ...spec,
       ply,
-      color: ply % 2 === 1 ? "sente" : "gote",
+      color: colorOfPly(ply),
       notation: moveText.replace(/\(\d\d\)$/, ""),
       time,
       attemptsBefore: [],

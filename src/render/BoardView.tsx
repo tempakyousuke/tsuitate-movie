@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { interpolate, spring } from "remotion";
 import { COLOR_MARK, PIECE_CHAR, kanjiRank, zenFile } from "../shogi/notation.ts";
 import { HAND_KINDS, opposite, pieceAt, type Color, type Piece, type Square } from "../shogi/position.ts";
+import { ILLEGAL_LOSS_COUNT, type GameResult } from "../kifu/result.ts";
 import type { Scene } from "./scene.ts";
 
 /** god: 両方の駒を見せる / sente・gote: その手番から見える盤（相手の駒は隠す） */
@@ -37,7 +38,7 @@ const COLORS = {
 };
 
 /** 将棋クエストのついたて将棋は反則を9回までできて、10回目で負け */
-export const ILLEGAL_LIMIT = 9;
+export const ILLEGAL_LIMIT = ILLEGAL_LOSS_COUNT - 1;
 
 /** 対局者欄に出す名前とレート */
 export interface PlayerLabel {
@@ -167,8 +168,9 @@ export function BoardView({ scene, view, player, players, fps }: Props) {
       <PlayerCard color={far} label={players[far]} illegal={scene.illegalCount[far]} isSelf={far === player} side="far" />
       <PlayerCard color={near} label={players[near]} illegal={scene.illegalCount[near]} isSelf={near === player} side="near" />
       <InfoPanel scene={scene} view={view} visible={visible} />
-      {scene.check && <CheckBadge given={checkGiven} announcedAt={scene.checkAnnouncedAt} fps={fps} />}
+      {scene.check && !scene.result && <CheckBadge given={checkGiven} announcedAt={scene.checkAnnouncedAt} fps={fps} />}
       {attemptNode}
+      {scene.result && <ResultBanner {...scene.result} self={self} ply={scene.ply} fps={fps} />}
     </svg>
   );
 }
@@ -289,6 +291,37 @@ function PlayerCard({ color, label, illegal, isSelf, side }: {
           fill={i < illegal ? used : "none"} stroke={i < illegal ? used : COLORS.panelText}
           strokeWidth={2} opacity={i < illegal ? 1 : 0.4} />
       ))}
+    </g>
+  );
+}
+
+/**
+ * 勝敗の告知。盤の中央に、自分（self）から見た「勝ち」「負け」を大きく出す（色の意味は王手・反則と同じ）。
+ * 結果は両者に告げられるので、どの視点でも出す
+ */
+function ResultBanner({ result, local, self, ply, fps }: {
+  result: GameResult; local: number; self: Color; ply: number; fps: number;
+}) {
+  const pop = spring({ frame: local, fps, config: { damping: 12, stiffness: 160 } });
+  const { winner, reason } = result;
+  const [label, color] = winner === null ? ["引き分け", COLORS.panel] : winner === self ? ["勝ち", COLORS.good] : ["負け", COLORS.bad];
+  // 投了・反則負け・時間切れは負けた側の出来事なので、誰のことか分かるように負けた側を書く
+  const loserReason = winner !== null && ["投了", "反則負け", "時間切れ"].includes(reason)
+    ? `${COLOR_MARK[opposite(winner)]}${COLOR_NAME[opposite(winner)]}の${reason}`
+    : reason;
+  const detail = winner === null
+    ? `まで${ply}手で${reason}`
+    : `まで${ply}手で${COLOR_MARK[winner]}${COLOR_NAME[winner]}の勝ち（${loserReason}）`;
+  const cx = BOARD_X + BOARD / 2;
+  const cy = BOARD_Y + BOARD / 2;
+  return (
+    <g fontFamily={FONT} opacity={Math.min(1, pop * 1.5)}>
+      <rect x={BOARD_X - 30} y={cy - 150} width={BOARD + 60} height={300} fill="rgba(20, 24, 34, 0.82)" />
+      <g transform={`translate(${cx} ${cy - 30}) scale(${0.6 + 0.4 * pop})`}>
+        <rect x={-230} y={-90} width={460} height={180} rx={24} fill={color} />
+        <text textAnchor="middle" dominantBaseline="central" fontSize={130} fontWeight={700} fill="#fff">{label}</text>
+      </g>
+      <text x={cx} y={cy + 110} textAnchor="middle" fontSize={42} fontWeight={700} fill={COLORS.panelText}>{detail}</text>
     </g>
   );
 }

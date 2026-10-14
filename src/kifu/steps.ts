@@ -1,6 +1,6 @@
 import { COLOR_MARK, attemptLabel } from "../shogi/notation.ts";
 import type { Color } from "../shogi/position.ts";
-import type { Kifu } from "./parseKif.ts";
+import { colorOfPly, type Kifu } from "./parseKif.ts";
 
 /** 棋譜上の1ステップ。attempt があれば ply 手目の前の反則試行、なければ ply 手目の指し手 */
 export interface StepRef {
@@ -36,8 +36,25 @@ export function kifuSteps(kifu: Kifu): KifuStep[] {
       label: COLOR_MARK[move.color] + move.notation,
     });
   }
+  // 指せずに終わった手番の反則（10回目の反則負けなど）
+  if (kifu.end) {
+    const { ply, attemptsBefore } = kifu.end;
+    const color = colorOfPly(ply);
+    attemptsBefore.forEach((attempt, i) => {
+      steps.push({
+        index: steps.length + 1,
+        ref: { ply, attempt: i },
+        color,
+        label: `${COLOR_MARK[color]}${attemptLabel(attempt)}（反則）`,
+      });
+    });
+  }
   return steps;
 }
+
+/** a が b より前に起きたステップなら負、同じなら 0（同じ手数では反則が先、指し手が最後） */
+export const compareSteps = (a: StepRef, b: StepRef): number =>
+  a.ply - b.ply || (a.attempt ?? Infinity) - (b.attempt ?? Infinity) || 0;
 
 export const sameStep = (a: StepRef, b: StepRef): boolean => a.ply === b.ply && a.attempt === b.attempt;
 

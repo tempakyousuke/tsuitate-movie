@@ -4,7 +4,7 @@ import {
   DEFAULT_GOD_REPLAY, mergeWithNext, segmentIndexOfPly, segmentStartPly, setVoices, speechText, splitSegment,
   updateSegment, type Episode, type GodReplay,
 } from "../src/episode/episode.ts";
-import { parseKif, replay } from "../src/kifu/parseKif.ts";
+import { attemptsAt, colorOfPly, parseKif, replay } from "../src/kifu/parseKif.ts";
 import { kifuSteps } from "../src/kifu/steps.ts";
 import { HEIGHT, WIDTH } from "../src/render/BoardView.tsx";
 import { EpisodeVideo, FPS, type MoveSound } from "../src/render/EpisodeVideo.tsx";
@@ -95,6 +95,29 @@ export function EpisodeEditor({ name, episode, kifuText, moveSound, onChange }: 
     document.querySelector(".moves .current")?.scrollIntoView({ block: "nearest" });
   }, [shownKey]);
 
+  const rowClass = (seg: number, key: string, ...extra: (string | false)[]) => [
+    "move", `seg-${seg % 2}`, seg === segIndex && "selected", key === shownKey && "current", ...extra,
+  ].filter(Boolean).join(" ");
+  const goto = (seg: number, key: string) => {
+    setSelected(seg);
+    seek(stepFrames.get(key) ?? 0);
+  };
+  /** ply 手目の前の反則の行。反則は、その手番の側が指す前に試した手なので、手の行の上に起きた順で並べる */
+  const attemptRows = (ply: number, seg: number) => {
+    const color = colorOfPly(ply);
+    return attemptsAt(kifu, ply).map((attempt, i) => {
+      const key = stepKey(ply, i);
+      return (
+        <div key={key} className={rowClass(seg, key, "attempt")} onClick={() => goto(seg, key)}>
+          <span className="ply" />
+          <span className="notation">{COLOR_MARK[color]}{attemptLabel(attempt)}</span>
+          <span className={`badge ${color === episode.player ? "bad" : "good"}`}>反則</span>
+        </div>
+      );
+    });
+  };
+  const lastSeg = episode.segments.length - 1;
+
   return (
     <div className="editor">
       <aside className="moves">
@@ -102,30 +125,13 @@ export function EpisodeEditor({ name, episode, kifuText, moveSound, onChange }: 
           const seg = segmentIndexOfPly(episode, move.ply);
           const isEnd = episode.segments[seg]!.endPly === move.ply;
           const check = checkInfo(positions[move.ply]!);
-          const rowClass = (key: string, ...extra: (string | false)[]) => [
-            "move", `seg-${seg % 2}`, seg === segIndex && "selected", key === shownKey && "current", ...extra,
-          ].filter(Boolean).join(" ");
-          const goto = (key: string) => {
-            setSelected(seg);
-            seek(stepFrames.get(key) ?? 0);
-          };
-          // 反則は、その手を指した側が指す前に試した手なので、手の行の上に起きた順で並べる
-          const attempts = move.attemptsBefore.map((attempt, i) => {
-            const key = stepKey(move.ply, i);
-            return (
-              <div key={key} className={rowClass(key, "attempt")} onClick={() => goto(key)}>
-                <span className="ply" />
-                <span className="notation">{COLOR_MARK[move.color]}{attemptLabel(attempt)}</span>
-                <span className={`badge ${move.color === episode.player ? "bad" : "good"}`}>反則</span>
-              </div>
-            );
-          });
+          const attempts = attemptRows(move.ply, seg);
           const key = stepKey(move.ply);
           return [...attempts, (
             <div
               key={key}
-              className={rowClass(key, isEnd && seg < episode.segments.length - 1 && "boundary")}
-              onClick={() => goto(key)}
+              className={rowClass(seg, key, isEnd && seg < lastSeg && "boundary")}
+              onClick={() => goto(seg, key)}
             >
               <span className="ply">{move.ply}</span>
               <span className="notation">{COLOR_MARK[move.color]}{move.notation}</span>
@@ -143,6 +149,14 @@ export function EpisodeEditor({ name, episode, kifuText, moveSound, onChange }: 
             </div>
           )];
         })}
+        {/* 指せずに終わった手番の反則（10回目の反則負けなど）と終局の理由 */}
+        {kifu.end && attemptRows(kifu.end.ply, lastSeg)}
+        {kifu.end && (
+          <div className={`move seg-${lastSeg % 2} end`}>
+            <span className="ply">{kifu.end.ply}</span>
+            <span className="notation">{kifu.end.reason}</span>
+          </div>
+        )}
       </aside>
 
       <main className="preview">

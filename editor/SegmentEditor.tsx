@@ -26,8 +26,9 @@ const VIEWS: { value: View; label: string }[] = [
 export function SegmentEditor({ episode, index, steps, timeline, frame, onSeek, onChange, onMergeNext, onMakeVoice }: Props) {
   const seg = episode.segments[index]!;
   const startPly = segmentStartPly(episode, index);
-  const segSteps = steps.filter((s) => s.ref.ply >= startPly && s.ref.ply <= seg.endPly);
   const isLast = index === episode.segments.length - 1;
+  // 最後の区間は、最終手の後の反則（10回目の反則負けなど）まで選べる
+  const segSteps = steps.filter((s) => s.ref.ply >= startPly && (s.ref.ply <= seg.endPly || isLast));
 
   const setLines = (lines: Line[]) => onChange({ lines });
   const updateLine = (i: number, patch: Partial<Line>) =>

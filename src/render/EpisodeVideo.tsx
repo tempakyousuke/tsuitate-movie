@@ -5,6 +5,7 @@ import {
 } from "remotion";
 import { defaultEpisode, type Bgm, type Episode, type Speaker } from "../episode/episode.ts";
 import { parseKif, replay, type Kifu } from "../kifu/parseKif.ts";
+import { gameResult } from "../kifu/result.ts";
 import { opposite, type Color } from "../shogi/position.ts";
 import { SLIDE_FRAMES, buildTimeline, lineAt, viewAt } from "../timeline/timeline.ts";
 import { bgmGain, bgmPlays } from "./bgm.ts";
@@ -157,14 +158,17 @@ function playerLabels(kifu: Kifu, player: Color): Record<Color, PlayerLabel> {
 export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const data = useMemo(() => {
-    if (!episode || kifuText === undefined) return null;
+  // 棋譜から決まるもの（詰みの判定を含む）は、台本を編集するたびには計算し直さない
+  const game = useMemo(() => {
+    if (kifuText === undefined) return null;
     const kifu = parseKif(kifuText);
-    return { kifu, positions: replay(kifu), timeline: buildTimeline(kifu, episode, fps) };
-  }, [episode, kifuText, fps]);
-  if (!episode || !data) return null;
+    const positions = replay(kifu);
+    return { kifu, positions, result: gameResult(kifu, positions) };
+  }, [kifuText]);
+  const timeline = useMemo(() => (episode && game ? buildTimeline(game.kifu, episode, fps) : null), [episode, game, fps]);
+  if (!episode || !game || !timeline) return null;
 
-  const { kifu, positions, timeline } = data;
+  const { kifu, positions, result } = game;
   const line = lineAt(timeline, frame);
   const speaker = line && episode.speakers.find((s) => s.id === line.speaker);
   const cast = castOf(episode);
@@ -176,7 +180,7 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
     <AbsoluteFill style={{ background: "#1d2433" }}>
       <div style={{ width: WIDTH, height: HEIGHT, transform: `scale(${BOARD_SCALE})`, transformOrigin: "top center" }}>
         <BoardView
-          scene={sceneAt(kifu, positions, timeline, frame)}
+          scene={sceneAt(kifu, positions, timeline, frame, result)}
           view={viewAt(timeline, frame)}
           player={episode.player}
           players={playerLabels(kifu, episode.player)}

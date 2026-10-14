@@ -92,7 +92,9 @@ export function buildTimeline(kifu: Kifu, episode: Episode, fps: number): Timeli
     const segStart = segmentIndex === 0 ? 0 : t;
     segmentStarts.push(f(segStart));
     views.push({ frame: f(segStart), view: seg.view });
-    const end = Math.max(current, moveStepIndex(steps, Math.min(seg.endPly, kifu.moves.length)));
+    // 最後の区間は、最終手の後の反則（指せずに終わった手番の反則）まで受け持つ
+    const isLast = segmentIndex === episode.segments.length - 1;
+    const end = isLast ? steps.length : Math.max(current, moveStepIndex(steps, Math.min(seg.endPly, kifu.moves.length)));
 
     for (const line of seg.lines) {
       const dur = lineDurationSec(line, episode);

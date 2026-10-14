@@ -71,7 +71,12 @@ describe("parseKif（その他の表記）", () => {
   it("投了で終局を記録する", () => {
     const kifu = parseKif("手合割：平手\n1 ７六歩(77)\n2 投了\n");
     expect(kifu.moves).toHaveLength(1);
-    expect(kifu.end).toEqual({ ply: 2, reason: "投了" });
+    expect(kifu.end).toEqual({ ply: 2, reason: "投了", attemptsBefore: [] });
+  });
+
+  it("終局の行の後の反則は、指せずに終わった手番の反則として残す", () => {
+    const kifu = parseKif("手合割：平手\n1 ７六歩(77)\n2 反則負け\n*illegal:0055FU\n");
+    expect(kifu.end).toMatchObject({ ply: 2, reason: "反則負け", attemptsBefore: [{ raw: "0055FU" }] });
   });
 
   it("読めない行はエラーにする", () => {
