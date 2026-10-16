@@ -84,7 +84,7 @@ export const calculateKifuReplayMetadata: CalculateMetadataFunction<KifuReplayCo
 export const EpisodeComposition: React.FC<EpisodeCompositionProps> = (props) => <EpisodeVideo {...props} />;
 export const KifuReplayComposition: React.FC<KifuReplayCompositionProps> = (props) => <EpisodeVideo {...props} />;
 
-/** BGM を動画の最後まで、つなぎ目をクロスフェードしながら繰り返す */
+/** BGM を動画の最後まで繰り返す */
 function BgmTrack({ bgm, totalFrames, fps }: { bgm: Bgm; totalFrames: number; fps: number }) {
   const plays = useMemo(() => bgmPlays(totalFrames, bgm.durationSec, fps), [totalFrames, bgm.durationSec, fps]);
   return plays.map((play, i) => (
