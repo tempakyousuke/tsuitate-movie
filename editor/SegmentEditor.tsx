@@ -129,7 +129,7 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocu
     onMakeVoice().catch((e: Error) => setVoiceError(e.message)).finally(() => setMaking(false));
   };
   const target = line.advance ? options.find((s) => s.ref.ply === line.advance!.to.ply && s.ref.attempt === line.advance!.to.attempt) : undefined;
-  const at = line.advance?.at ?? { kind: "end" };
+  const at = line.advance?.at ?? { kind: "start" };
   // このセリフで進める手数（前のセリフで進めた位置の次から target まで。反則も1つと数える）
   const stepCount = target && options[0] ? target.index - options[0].index + 1 : 0;
 
