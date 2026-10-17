@@ -3,7 +3,7 @@ import type { GameResult } from "../kifu/result.ts";
 import { compareSteps } from "../kifu/steps.ts";
 import { checkInfo, type CheckInfo } from "../shogi/attack.ts";
 import { COLOR_MARK, attemptLabel } from "../shogi/notation.ts";
-import { squareIndex, type Color, type Piece, type Position, type Square } from "../shogi/position.ts";
+import { pieceAt, squareIndex, type Color, type Piece, type PieceKind, type Position, type Square } from "../shogi/position.ts";
 import { SLIDE_FRAMES, entryAt, type Step, type Timeline } from "../timeline/timeline.ts";
 
 export interface Scene {
@@ -25,6 +25,11 @@ export interface Scene {
   checkAnnouncedAt: number | null;
   /** ここまでに告げられた反則の回数（表示中の反則を含む）。審判が告げるので両者に見える */
   illegalCount: Record<Color, number>;
+  /**
+   * 表示中の手で駒を取ったなら、取った側と取られた駒（盤上での駒種）。local は駒が着いてからのフレーム数。
+   * 取った側は持ち駒で、取られた側は盤から駒が消えて分かるので、視点によらず出す
+   */
+  capture: { color: Color; piece: PieceKind; local: number } | null;
   /** 最終手が指された後なら対局の結果（このときは王手の告知を出さない）。local は告げてからのフレーム数 */
   result: { result: GameResult; local: number } | null;
 }
@@ -61,7 +66,7 @@ export function sceneAt(
 function sceneOfStep(kifu: Kifu, positions: Position[], step: Step, local: number): Scene {
   const base: Scene = {
     position: positions[0]!, sliding: null, lastMove: null, attempt: null, ply: 0, caption: null,
-    check: null, checkAnnouncedAt: null, illegalCount: { sente: 0, gote: 0 }, result: null,
+    check: null, checkAnnouncedAt: null, illegalCount: { sente: 0, gote: 0 }, capture: null, result: null,
   };
   const settled = (ply: number): Scene => {
     const move = kifu.moves[ply - 1];
@@ -91,12 +96,17 @@ function sceneOfStep(kifu: Kifu, positions: Position[], step: Step, local: numbe
       };
     }
     case "move": {
-      if (local >= SLIDE_FRAMES) {
-        const scene = settled(step.ply);
-        return { ...scene, checkAnnouncedAt: scene.check ? local - SLIDE_FRAMES : null };
-      }
       const move = kifu.moves[step.ply - 1]!;
       const before = positions[step.ply - 1]!;
+      if (local >= SLIDE_FRAMES) {
+        const scene = settled(step.ply);
+        const taken = pieceAt(before, move.to);
+        return {
+          ...scene,
+          checkAnnouncedAt: scene.check ? local - SLIDE_FRAMES : null,
+          capture: taken ? { color: move.color, piece: taken.kind, local: local - SLIDE_FRAMES } : null,
+        };
+      }
       const board = before.board.slice();
       if (move.from) board[squareIndex(move.from)] = null;
       return {

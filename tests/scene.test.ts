@@ -30,6 +30,16 @@ describe("sceneAt", () => {
     expect(scene.lastMove).toEqual({ color: "sente", to: { file: 7, rank: 8 } });
   });
 
+  it("駒を取った手は、滑り終わった瞬間に取った側と取られた駒を告げる", () => {
+    // 28手目 △同歩 が▲の桂を取る
+    const start = startOf((s) => s.type === "move" && s.ply === 28);
+    expect(sceneAt(kifu, positions, timeline, start + 2).capture).toBeNull();
+    expect(sceneAt(kifu, positions, timeline, start + SLIDE_FRAMES + 3).capture).toEqual({ color: "gote", piece: "KE", local: 3 });
+    // 取らない手では出さない
+    const quiet = startOf((s) => s.type === "move" && s.ply === 27);
+    expect(sceneAt(kifu, positions, timeline, quiet + SLIDE_FRAMES).capture).toBeNull();
+  });
+
   it("王手をかけた手は、滑り終わった瞬間に王手を告げる", () => {
     const start = startOf((s) => s.type === "move" && s.ply === 61);
     expect(sceneAt(kifu, positions, timeline, start + 2).check).toBeNull();

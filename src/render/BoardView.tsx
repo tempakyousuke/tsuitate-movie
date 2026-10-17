@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { interpolate, spring } from "remotion";
-import { COLOR_MARK, PIECE_CHAR, kanjiRank, zenFile } from "../shogi/notation.ts";
+import { COLOR_MARK, PIECE_CHAR, PIECE_FULL_NAME, kanjiRank, zenFile } from "../shogi/notation.ts";
 import { HAND_KINDS, opposite, pieceAt, type Color, type Piece, type Square } from "../shogi/position.ts";
 import { ILLEGAL_LOSS_COUNT, type GameResult } from "../kifu/result.ts";
 import type { Scene } from "./scene.ts";
@@ -169,6 +169,7 @@ export function BoardView({ scene, view, player, players, fps }: Props) {
       <PlayerCard color={near} label={players[near]} illegal={scene.illegalCount[near]} isSelf={near === player} side="near" />
       <InfoPanel scene={scene} view={view} visible={visible} />
       {scene.check && !scene.result && <CheckBadge given={checkGiven} announcedAt={scene.checkAnnouncedAt} fps={fps} />}
+      {scene.capture && <CaptureBadge capture={scene.capture} given={scene.capture.color === self} fps={fps} />}
       {attemptNode}
       {scene.result && <ResultBanner {...scene.result} self={self} ply={scene.ply} fps={fps} />}
     </svg>
@@ -341,7 +342,24 @@ function CheckBadge({ given, announcedAt, fps }: { given: boolean; announcedAt: 
   );
 }
 
-const VIEW_LABEL: Record<View, string> = { god: "神視点", sente: "先手視点", gote: "後手視点" };
+/**
+ * 駒を取った・取られたの告知（王手の告知の下）。駒が着いた瞬間に弾むように出て、次の手まで残る。
+ * 持ち駒が増えるだけでは分かりにくいので、言葉でも出す
+ */
+function CaptureBadge({ capture, given, fps }: { capture: NonNullable<Scene["capture"]>; given: boolean; fps: number }) {
+  const pop = spring({ frame: capture.local, fps, config: { damping: 10, stiffness: 200 } });
+  return (
+    <g fontFamily={FONT} transform={`translate(${INFO_X + 130} ${BOARD_Y + 690}) scale(${0.5 + 0.5 * pop})`}
+      opacity={Math.min(1, pop * 1.5)}>
+      <rect x={-150} y={-40} width={300} height={80} rx={14} fill={given ? COLORS.good : COLORS.bad} />
+      <text textAnchor="middle" dominantBaseline="central" fontSize={38} fontWeight={700} fill="#fff">
+        {PIECE_FULL_NAME[capture.piece]}を{given ? "取った" : "取られた"}
+      </text>
+    </g>
+  );
+}
+
+const VIEW_LABEL: Record<View, string> ={ god: "神視点", sente: "先手視点", gote: "後手視点" };
 
 function InfoPanel({ scene, view, visible }: { scene: Scene; view: View; visible: (c: Color) => boolean }) {
   const x = INFO_X;

@@ -15,6 +15,12 @@ export const PIECE_NAME: Record<PieceKind, string> = {
   TO: "と", NY: "成香", NK: "成桂", NG: "成銀", UM: "馬", RY: "龍",
 };
 
+/** 話し言葉の名前（「飛車を取った」など） */
+export const PIECE_FULL_NAME: Record<PieceKind, string> = {
+  FU: "歩", KY: "香車", KE: "桂馬", GI: "銀", KI: "金", KA: "角", HI: "飛車", OU: "玉",
+  TO: "と金", NY: "成香", NK: "成桂", NG: "成銀", UM: "馬", RY: "龍",
+};
+
 export const COLOR_MARK: Record<Color, string> = { sente: "▲", gote: "△" };
 
 export const zenFile = (file: number): string => ZEN_DIGITS[file - 1] ?? "?";
