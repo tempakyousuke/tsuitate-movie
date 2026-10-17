@@ -92,7 +92,8 @@ textarea { width: 100%; resize: vertical; }
 .line-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .line-row .spacer { flex: 1; }
 .line details summary { color: var(--muted); font-size: 12px; cursor: pointer; }
-.line details input { width: 100%; margin-top: 4px; }
+.line details .line-row { margin-top: 4px; flex-wrap: nowrap; }
+.line details input.yomi { flex: 1; min-width: 0; }
 .line .advance span, .line .expression span { color: var(--muted); }
 .line .ratio { width: 4.5em; }
 .add { width: 100%; margin-top: 10px; }

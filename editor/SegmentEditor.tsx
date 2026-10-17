@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { freshVoice, newId, segmentStartPly, type Episode, type Line, type LineTiming, type Segment } from "../src/episode/episode.ts";
+import { suggestedYomi } from "../src/episode/yomi.ts";
 import { stepIndexOf, type KifuStep } from "../src/kifu/steps.ts";
 import type { View } from "../src/render/BoardView.tsx";
 import { DEFAULT_EXPRESSION, EXPRESSIONS, expressionOf } from "../src/render/characters.ts";
@@ -122,6 +123,9 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocu
 }) {
   const speaker = episode.speakers.find((s) => s.id === line.speaker);
   const voice = freshVoice(line);
+  // ゆかり（A.I.VOICE2）は A.I.VOICE2 の辞書で読みを直すので、自動の読みはゆっくりだけ
+  const usesAutoYomi = speaker?.engine === "aquestalk";
+  const suggested = suggestedYomi(line.text);
   const [making, setMaking] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const makeVoice = () => {
@@ -166,15 +170,26 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocu
         autoFocus={autoFocus}
         value={line.text}
         placeholder="セリフ（字幕に出す文）"
-        onChange={(e) => onChange({ text: e.target.value })}
+        onChange={(e) => onChange(
+          // ゆっくりは読み間違える言葉の読みを自動で入れる。手で直した読み（自動で入れたものと違う）は書き換えない
+          usesAutoYomi && (!line.yomi || line.yomi === suggestedYomi(line.text))
+            ? { text: e.target.value, yomi: suggestedYomi(e.target.value) }
+            : { text: e.target.value },
+        )}
       />
       <details open={!!line.yomi}>
         <summary>読みを指定</summary>
-        <input
-          value={line.yomi ?? ""}
-          placeholder="読み上げ用の文（空なら字幕と同じ）"
-          onChange={(e) => onChange({ yomi: e.target.value || undefined })}
-        />
+        <div className="line-row">
+          <input
+            className="yomi"
+            value={line.yomi ?? ""}
+            placeholder="読み上げ用の文（空なら字幕と同じ）"
+            onChange={(e) => onChange({ yomi: e.target.value || undefined })}
+          />
+          {usesAutoYomi && suggested && suggested !== line.yomi && (
+            <button title={`字幕から自動で入れる読み: ${suggested}`} onClick={() => onChange({ yomi: suggested })}>自動で入れる</button>
+          )}
+        </div>
       </details>
       <div className="line-row expression">
         <span>表情</span>
