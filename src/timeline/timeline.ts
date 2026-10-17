@@ -27,6 +27,7 @@ export interface LineCue {
   speaker: string;
   text: string;
   voice: Line["voice"];
+  expression: Line["expression"];
   startFrame: number;
   durationFrames: number;
 }
@@ -99,7 +100,7 @@ export function buildTimeline(kifu: Kifu, episode: Episode, fps: number): Timeli
     for (const line of seg.lines) {
       const dur = lineDurationSec(line, episode);
       lines.push({
-        lineId: line.id, segmentIndex, speaker: line.speaker, text: line.text, voice: freshVoice(line),
+        lineId: line.id, segmentIndex, speaker: line.speaker, text: line.text, voice: freshVoice(line), expression: line.expression,
         startFrame: f(t), durationFrames: Math.max(1, f(dur)),
       });
       if (line.advance) {

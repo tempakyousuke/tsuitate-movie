@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import { freshVoice, newId, segmentStartPly, type Episode, type Line, type LineTiming, type Segment } from "../src/episode/episode.ts";
 import { stepIndexOf, type KifuStep } from "../src/kifu/steps.ts";
 import type { View } from "../src/render/BoardView.tsx";
+import { DEFAULT_EXPRESSION, EXPRESSIONS, expressionOf } from "../src/render/characters.ts";
 import type { Timeline } from "../src/timeline/timeline.ts";
 
 interface Props {
@@ -175,6 +176,16 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocu
           onChange={(e) => onChange({ yomi: e.target.value || undefined })}
         />
       </details>
+      <div className="line-row expression">
+        <span>表情</span>
+        <select
+          title="話している間の表情（話し終わったら普通に戻る）"
+          value={expressionOf(line.expression) === DEFAULT_EXPRESSION ? "" : line.expression}
+          onChange={(e) => onChange({ expression: e.target.value || undefined })}
+        >
+          {EXPRESSIONS.map((ex) => <option key={ex.id} value={ex === DEFAULT_EXPRESSION ? "" : ex.id}>{ex.label}</option>)}
+        </select>
+      </div>
       {/* 「盤面を〈どこ〉まで、セリフの〈いつ〉で進める」と1文で読めるように並べる */}
       <div className="line-row advance">
         <span>盤面を</span>

@@ -5,6 +5,7 @@ import type { Color } from "../src/shogi/position.ts";
 import { api, type LoadedEpisode } from "./client.ts";
 import { BgmControl } from "./BgmControl.tsx";
 import { EpisodeEditor } from "./EpisodeEditor.tsx";
+import { ExpressionGallery } from "./ExpressionGallery.tsx";
 import { VoicePanel } from "./VoicePanel.tsx";
 
 type SaveState = "saved" | "saving" | "error";
@@ -18,6 +19,7 @@ export function App() {
   const [current, setCurrent] = useState<(LoadedEpisode & { name: string }) | null>(null);
   const [creating, setCreating] = useState(false);
   const [voicing, setVoicing] = useState(false);
+  const [browsingExpressions, setBrowsingExpressions] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [error, setError] = useState<string | null>(null);
   const [moveSound, setMoveSound] = useState<MoveSound>(null);
@@ -111,6 +113,7 @@ export function App() {
         {current && (
           <>
             <button onClick={() => setVoicing(true)}>音声…</button>
+            <button onClick={() => setBrowsingExpressions(true)}>表情一覧…</button>
             <BgmControl episode={current.episode} onChange={change} />
             <span className={`save save-${saveState}`}>
               {{ saved: "保存済み", saving: "保存中…", error: "保存エラー" }[saveState]}
@@ -124,6 +127,9 @@ export function App() {
       {creating && <NewEpisodeDialog onCreated={created} onCancel={() => setCreating(false)} />}
       {voicing && current && (
         <VoicePanel name={current.name} episode={current.episode} onChange={change} onClose={() => setVoicing(false)} />
+      )}
+      {browsingExpressions && current && (
+        <ExpressionGallery episode={current.episode} onClose={() => setBrowsingExpressions(false)} />
       )}
       {current
         ? <EpisodeEditor key={current.name} {...current} moveSound={moveSound} onChange={change} />

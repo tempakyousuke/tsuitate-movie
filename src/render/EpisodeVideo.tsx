@@ -11,7 +11,8 @@ import { SLIDE_FRAMES, buildTimeline, lineAt, viewAt } from "../timeline/timelin
 import { bgmGain, bgmPlays } from "./bgm.ts";
 import { BoardView, HEIGHT, WIDTH, type PlayerLabel, type View } from "./BoardView.tsx";
 import {
-  DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, eyeStage, mouthStage, spriteParts, type Side,
+  DEFAULT_EXPRESSION, SPRITE_H, SPRITE_W, castOf, expressionOf, expressionsUsed, eyeStage, isMultiplyLayer, mouthStage, spriteLayers,
+  type Expression, type Side,
 } from "./characters.ts";
 import { sceneAt } from "./scene.ts";
 
@@ -122,8 +123,9 @@ function subtitleFontSize(text: string, width: number): number {
  * 1人分の立ち絵。素材は画面の左を向いているので、左側の人は左右反転して右（相手）を向かせる。
  * 話していない人は、誰かが話している間は少し暗くする
  */
-function CharacterSprite({ speaker, side, index, count, eye, mouth, dimmed }: {
-  speaker: Speaker; side: Side; index: number; count: number; eye: number; mouth: number; dimmed: boolean;
+function CharacterSprite({ speaker, side, index, count, used, expression, eye, mouth, dimmed }: {
+  speaker: Speaker; side: Side; index: number; count: number;
+  used: Expression[]; expression: Expression; eye: number; mouth: number; dimmed: boolean;
 }) {
   const scale = spriteScale(count);
   const w = SPRITE_W * scale;
@@ -136,13 +138,13 @@ function CharacterSprite({ speaker, side, index, count, eye, mouth, dimmed }: {
       transform: side === "left" ? "scaleX(-1)" : undefined,
       filter: dimmed ? "brightness(0.7)" : undefined,
     }}>
-      {spriteParts(speaker.id, DEFAULT_EXPRESSION).flatMap(({ layer, srcs }) => {
-        const shown = layer === "目" ? eye : layer === "口" ? mouth : 0;
-        return srcs.map((src, i) => (
-          <Img key={src} src={staticFile(src)}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: i === shown ? 1 : 0 }} />
-        ));
-      })}
+      {spriteLayers(speaker.id, used, expression, eye, mouth).flatMap(({ srcs, shown }) => srcs.map((src) => (
+        <Img key={src} src={staticFile(src)}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%", opacity: src === shown ? 1 : 0,
+            mixBlendMode: isMultiplyLayer(src) ? "multiply" : undefined,
+          }} />
+      )))}
     </div>
   );
 }
@@ -220,6 +222,9 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
             side={side}
             index={i}
             count={cast[side].length}
+            used={expressionsUsed(episode, s.id)}
+            // セリフで指定した表情は話している間だけ。話し終わったら基本の表情に戻す
+            expression={talking ? expressionOf(line!.expression) : DEFAULT_EXPRESSION}
             eye={eyeStage(frame, fps, s.id)}
             mouth={talking ? mouthStage(frame - line!.startFrame, line!.voice) : 0}
             dimmed={!!line && !talking}

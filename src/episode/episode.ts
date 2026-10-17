@@ -71,6 +71,8 @@ export interface Line {
   yomi?: string;
   /** このセリフの間に盤面をどこまで進めるか */
   advance?: { to: StepRef; at: LineTiming };
+  /** 話している間の表情（`EXPRESSIONS` の id）。省略時は基本の表情 */
+  expression?: string;
   /** 作成・取り込みした音声 */
   voice?: Voice;
 }

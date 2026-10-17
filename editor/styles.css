@@ -93,7 +93,7 @@ textarea { width: 100%; resize: vertical; }
 .line-row .spacer { flex: 1; }
 .line details summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .line details input { width: 100%; margin-top: 4px; }
-.line .advance span { color: var(--muted); }
+.line .advance span, .line .expression span { color: var(--muted); }
 .line .ratio { width: 4.5em; }
 .add { width: 100%; margin-top: 10px; }
 /* セリフの間の挿入ボタン。ふだんはセリフ間のすき間として見え、マウスを乗せると現れる */
@@ -136,6 +136,13 @@ textarea { width: 100%; resize: vertical; }
 .voice-panel .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .voice-panel .steps input { flex: 1; }
 .progress { color: var(--muted); font-size: 13px; }
+.expression-gallery { width: min(1100px, 95vw); max-height: 90vh; overflow-y: auto; }
+.expression-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.expression-grid figure { margin: 0; padding: 4px; border-radius: 6px; border: 2px solid transparent; background: var(--panel-2); }
+.expression-grid figure.named { border-color: var(--accent); }
+.expression-grid .face { position: relative; overflow: hidden; }
+.expression-grid figcaption { text-align: center; font-size: 12px; color: var(--muted); }
+.expression-grid figcaption strong { color: var(--text); }
 .voice-badge { font-size: 11px; padding: 0 6px; border-radius: 4px; background: #3a3f4d; color: var(--muted); }
 .voice-badge.ok { background: #2a5a34; color: #e8f5ec; }
 .make-voice { font-size: 11px; padding: 1px 8px; }
