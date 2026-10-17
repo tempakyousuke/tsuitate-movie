@@ -34,7 +34,10 @@ export type MoveSound = { src: string; leadSilenceSec: number; volume: number } 
 // On-Jin ～音人～「将棋・駒を強めに指す03」。再配布不可のためリポジトリには含めない
 // （https://on-jin.com/sound/index.php?kensaku=将棋の駒 から取得して public/sounds/ に置く）
 // 素材そのままだとピークが +0.4dBFS あり、セリフや BGM と重なると音が割れるので、少し（約 -3dB）下げる
-export const DEFAULT_MOVE_SOUND: MoveSound = { src: "sounds/spo_ge_syogi_s03.mp3", leadSilenceSec: 0.107, volume: 0.7 };
+/** セリフ音声を、セリフの長さ（末尾の無音を除く）より余分に流す秒数 */
+const VOICE_TAIL_SEC = 0.5;
+
+export const DEFAULT_MOVE_SOUND: MoveSound ={ src: "sounds/spo_ge_syogi_s03.mp3", leadSilenceSec: 0.107, volume: 0.7 };
 
 export type EpisodeVideoProps = {
   episode?: Episode;
@@ -239,7 +242,9 @@ export function EpisodeVideo({ episode, kifuText, moveSound }: EpisodeVideoProps
       ))}
       {episode.bgm && <BgmTrack bgm={episode.bgm} totalFrames={timeline.durationInFrames} fps={fps} />}
       {timeline.lines.map((cue) => cue.voice && (
-        <Sequence key={`v${cue.lineId}`} from={cue.startFrame} durationInFrames={cue.durationFrames} layout="none">
+        // セリフの長さは末尾の無音を除いたもの。プレビューは音声の再生が少し遅れて始まるので、
+        // セリフの長さちょうどで止めると最後が切れる。後ろは無音なので、余分に流しても書き出しの聞こえ方は変わらない
+        <Sequence key={`v${cue.lineId}`} from={cue.startFrame} durationInFrames={cue.durationFrames + Math.round(VOICE_TAIL_SEC * fps)} layout="none">
           <Html5Audio src={staticFile(cue.voice.src)} />
         </Sequence>
       ))}

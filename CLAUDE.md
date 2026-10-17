@@ -124,7 +124,7 @@ pnpm characters:link      # assets/ の立ち絵素材を public/characters/<話
 
 セリフ音声はエディタの「音声…」から作成・取り込みできる（`editor/VoicePanel.tsx`、`editor/voices.ts`）。
 - 音声は `voices/<セリフid>-<文のハッシュ>.wav`。`Line.voice` に長さ・口パク（`mouth`: 30fps の 0〜5 の列）・音声にした文（`text`）を持つ。
-- 長さは末尾の無音を除いたもの（`src/audio/wav.ts`）。セリフの文（読み）が `voice.text` と違えば古い音声として使わない（`freshVoice()`）。
+- 長さは末尾の無音を除いたもの（`src/audio/wav.ts`）。ただし再生はそれより0.5秒長く流す（プレビューは音声が少し遅れて始まり、長さちょうどで止めると最後が切れた。ユーザー指摘）。セリフの文（読み）が `voice.text` と違えば古い音声として使わない（`freshVoice()`）。
 - **音量は保存時に ffmpeg で -18 LUFS にそろえる**（ピークは -1 dBFS まで）。そのままだと AquesTalk 約 -14 LUFS、A.I.VOICE2 約 -24 LUFS で、ゆっくりがかなり大きい（ユーザー指摘）。`voice.lufs` がない音声はそろえる前のもので、「音声…」からそろえ直せる。ブラウザの音量は 1 より上げられないので、再生時ではなくファイルで調整している。
 
 ## 作業上の注意
