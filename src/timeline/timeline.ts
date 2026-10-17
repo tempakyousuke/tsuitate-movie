@@ -88,6 +88,19 @@ export function buildTimeline(kifu: Kifu, episode: Episode, fps: number): Timeli
     }
     return s;
   };
+  /**
+   * セリフで from の次から to まで進める。最後の手が arriveSec（セリフの頭・途中・終わり）に着くように、
+   * 盤面が空いた時点（freeSec。ふつうはセリフの頭）から arriveSec までに均等な間隔で並べる。
+   * 間がない（「頭」のとき、前のセリフの手がまだ続いているとき）は、そこから自動再生の間隔で進める。
+   * 返すのは、盤面が次に空く時点（最後の手を自動再生と同じだけ見せた後）
+   */
+  const advanceBoard = (from: number, to: number, freeSec: number, arriveSec: number): number => {
+    const count = to - from;
+    if (count === 1 || arriveSec <= freeSec) return playSteps(from, to, Math.max(arriveSec, freeSec));
+    const interval = (arriveSec - freeSec) / (count - 1);
+    const last = steps[to - 1]!;
+    return playSteps(from, to, freeSec, (s) => (s === last ? stepSec(s) : interval));
+  };
 
   episode.segments.forEach((seg, segmentIndex) => {
     const segStart = segmentIndex === 0 ? 0 : t;
@@ -106,7 +119,7 @@ export function buildTimeline(kifu: Kifu, episode: Episode, fps: number): Timeli
       if (line.advance) {
         const target = Math.min(end, stepIndexOf(steps, line.advance.to));
         if (target > current) {
-          boardBusyUntil = playSteps(current, target, Math.max(t + timingSec(line.advance.at, dur), boardBusyUntil));
+          boardBusyUntil = advanceBoard(current, target, Math.max(t, boardBusyUntil), t + timingSec(line.advance.at, dur));
           current = target;
         }
       }

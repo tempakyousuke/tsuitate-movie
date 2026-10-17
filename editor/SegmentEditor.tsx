@@ -234,7 +234,11 @@ function LineEditor({ line, episode, options, playing, isFirst, isLast, autoFocu
         )}
       </div>
       {target && stepCount > 1 && (
-        <p className="note">{stepCount}手分（反則も1つと数える）を、そこから自動再生と同じ間隔で1つずつ進めます。</p>
+        <p className="note">
+          {at.kind === "start"
+            ? `${stepCount}手分（反則も1つと数える）を、セリフの頭から自動再生と同じ間隔で1つずつ進めます。`
+            : `${stepCount}手分（反則も1つと数える）を、セリフの頭から均等な間隔で進め、指定した所で最後の手に着きます。`}
+        </p>
       )}
       {line.advance && !target && <p className="warn">進める先が前のセリフより前になっています。選び直してください。</p>}
       {voiceError && <p className="warn">音声を作れませんでした: {voiceError}</p>}

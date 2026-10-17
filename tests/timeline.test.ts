@@ -94,6 +94,32 @@ describe("buildTimeline（セリフあり）", () => {
     expect(startOf(t, (s) => s.type === "attempt" && s.ply === 34)).toBeGreaterThanOrEqual(c.startFrame + c.durationFrames);
   });
 
+  // 62手目の区間（62手目の前に反則が3回ある）に、セリフを1つだけ置く
+  const at62 = (l: Line): Episode => {
+    const b = splitSegment(splitSegment(defaultEpisode(kifu.moves.length, "sente"), 61), 62);
+    return { ...b, segments: b.segments.map((s, i) => (i === 1 ? { ...s, lines: [l] } : s)) };
+  };
+
+  it("複数の手を進めるときは、セリフの頭から指定の時点までに均等に並べ、最後の手を指定の時点に着かせる", () => {
+    // 反則3回と62手目（4ステップ）を、セリフの終わりまでに進める
+    const t = buildTimeline(kifu, at62(line("e", "ここで反則を三回してから指すのよね。長いセリフで確かめる", { to: { ply: 62 }, at: { kind: "end" } })), FPS);
+    const e = t.lines[0]!;
+    const starts = t.entries.filter((x) => x.step.type !== "initial" && x.step.ply === 62).map((x) => x.startFrame);
+    expect(starts).toHaveLength(4);
+    expect(starts[0]).toBe(e.startFrame);
+    expect(Math.abs(starts[3]! - (e.startFrame + e.durationFrames))).toBeLessThanOrEqual(1);
+    const gaps = starts.slice(1).map((s, i) => s - starts[i]!);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1);
+  });
+
+  it("「頭」で複数の手を進めるときは、頭から自動再生の間隔で進める", () => {
+    const t = buildTimeline(kifu, at62(line("f", "一気に", { to: { ply: 62, attempt: 1 }, at: { kind: "start" } })), FPS);
+    const starts = t.entries.filter((x) => x.step.type === "attempt" && x.step.ply === 62).map((x) => x.startFrame);
+    expect(starts[0]).toBe(t.lines[0]!.startFrame);
+    // 反則は1.5秒ずつ
+    expect(starts[1]! - starts[0]!).toBe(45);
+  });
+
   it("同じ時点に重なった手は、駒が滑り終わる間隔をあけて順に出す", () => {
     const rushed: Episode = {
       ...episode,
