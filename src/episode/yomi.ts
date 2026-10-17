@@ -49,7 +49,10 @@ export function autoYomi(text: string): string {
     .replace(/([1-9１-９])筋/g, (_, f: string) => `${FILE_YOMI[halfDigit(f)]!}筋`)
     // 8割2分
     .replace(/([1-9１-９])割(?:([1-9１-９])分)?/g, (_, w: string, b?: string) =>
-      `${DIGIT_YOMI[halfDigit(w)]!}ワリ${b ? `${DIGIT_YOMI[halfDigit(b)]!}ブ` : ""}`);
+      `${DIGIT_YOMI[halfDigit(w)]!}ワリ${b ? `${DIGIT_YOMI[halfDigit(b)]!}ブ` : ""}`)
+    // 単独の「桂」「香」（「カツラ」「カオリ」と読まれる）。桂馬・香車・香りはそのまま
+    .replace(/桂(?!馬)/g, "ケイ")
+    .replace(/香(?![車り])/g, "キョウ");
 }
 
 /** 字幕から自動で入れる読み。置き換える所がなければ undefined（読みを指定しない） */

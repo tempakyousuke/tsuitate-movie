@@ -22,6 +22,12 @@ describe("autoYomi", () => {
     expect(autoYomi("勝率8割2分の化け物")).toBe("勝率ハチワリニブの化け物");
   });
 
+  it("単独の「桂」「香」を読む（桂馬・香車・香りはそのまま）", () => {
+    expect(autoYomi("桂を取ってきたこの駒は何？")).toBe("ケイを取ってきたこの駒は何？");
+    expect(autoYomi("同桂と成香")).toBe("ドウケイと成キョウ");
+    expect(autoYomi("桂馬と香車、いい香り")).toBe("桂馬と香車、いい香り");
+  });
+
   it("置き換える所がなければ読みを指定しない", () => {
     expect(suggestedYomi("こんにちは")).toBeUndefined();
     expect(suggestedYomi("4五歩")).toBe("ヨンゴーフ");
